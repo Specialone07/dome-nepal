@@ -1,0 +1,159 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@300;400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --cream-50: #FDFBF7;
+  --cream-100: #FAF7F0;
+  --obsidian-900: #0A0A0A;
+  --obsidian-800: #111111;
+  --gold-400: #C9A84C;
+  --gold-300: #D4AF7A;
+}
+
+@layer base {
+  * { @apply border-stone-200; }
+  html { scroll-behavior: smooth; }
+  body {
+    @apply bg-cream-50 text-obsidian-900 font-body antialiased;
+    overflow-x: hidden;
+  }
+  h1, h2, h3, h4 { @apply font-display; }
+
+  ::selection {
+    background: #C9A84C33;
+    color: #0A0A0A;
+  }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #FAF7F0; }
+  ::-webkit-scrollbar-thumb {
+    background: #C9A84C66;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: #C9A84C; }
+}
+
+@layer components {
+  .btn-primary {
+    @apply relative overflow-hidden bg-obsidian-900 text-cream-50 px-8 py-3.5
+           font-body font-medium tracking-widest text-xs uppercase
+           transition-all duration-300 hover:bg-obsidian-700
+           focus:outline-none focus:ring-2 focus:ring-gold-400 focus:ring-offset-2;
+  }
+  .btn-primary::after {
+    content: '';
+    @apply absolute inset-0 bg-gold-400 opacity-0 transition-opacity duration-300;
+  }
+  .btn-primary:hover::after { @apply opacity-10; }
+
+  .btn-outline {
+    @apply relative overflow-hidden border border-obsidian-900 text-obsidian-900 px-8 py-3.5
+           font-body font-medium tracking-widest text-xs uppercase
+           transition-all duration-300 hover:bg-obsidian-900 hover:text-cream-50
+           focus:outline-none focus:ring-2 focus:ring-obsidian-900 focus:ring-offset-2;
+  }
+
+  .btn-gold {
+    @apply relative overflow-hidden bg-gold-400 text-obsidian-900 px-8 py-3.5
+           font-body font-medium tracking-widest text-xs uppercase
+           transition-all duration-300 hover:bg-gold-500
+           focus:outline-none focus:ring-2 focus:ring-gold-400 focus:ring-offset-2;
+  }
+
+  .input-field {
+    @apply w-full border border-stone-200 bg-white px-4 py-3 text-sm text-obsidian-900
+           placeholder-stone-400 focus:outline-none focus:border-obsidian-900
+           transition-colors duration-200 rounded-none;
+  }
+
+  .card-hover {
+    @apply transition-all duration-500 hover:-translate-y-1 hover:shadow-xl;
+  }
+
+  .section-title {
+    @apply font-display text-4xl md:text-5xl font-light text-obsidian-900 leading-tight;
+  }
+
+  .section-subtitle {
+    @apply font-body text-sm tracking-[0.2em] uppercase text-stone-500 mb-3;
+  }
+
+  .glass {
+    @apply bg-white/80 backdrop-blur-md border border-white/20;
+  }
+
+  .glass-dark {
+    @apply bg-obsidian-900/80 backdrop-blur-md border border-white/10;
+  }
+
+  .skeleton {
+    @apply bg-gradient-to-r from-stone-200 via-stone-100 to-stone-200;
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+  }
+
+  .text-gradient {
+    @apply bg-gradient-to-r from-obsidian-900 via-stone-500 to-gold-400 bg-clip-text text-transparent;
+  }
+
+  .link-underline {
+    @apply relative after:absolute after:bottom-0 after:left-0 after:h-[1px] after:w-0
+           after:bg-current after:transition-all after:duration-300 hover:after:w-full;
+  }
+
+  .nav-link {
+    @apply font-body text-xs tracking-[0.15em] uppercase text-obsidian-900/70
+           hover:text-obsidian-900 transition-colors duration-200 link-underline;
+  }
+
+  .price-tag {
+    @apply font-display text-2xl font-medium text-obsidian-900;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 text-[10px] font-mono uppercase tracking-widest;
+  }
+
+  .badge-new {
+    @apply badge bg-gold-400 text-obsidian-900;
+  }
+
+  .badge-sale {
+    @apply badge bg-red-500 text-white;
+  }
+
+  .divider-ornament {
+    @apply flex items-center gap-4 text-stone-300;
+  }
+  .divider-ornament::before,
+  .divider-ornament::after {
+    content: '';
+    @apply flex-1 h-[1px] bg-stone-200;
+  }
+
+  /* Product grid */
+  .product-grid {
+    @apply grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6;
+  }
+
+  /* Page padding */
+  .page-container {
+    @apply max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-12 xl:px-20;
+  }
+}
+
+@layer utilities {
+  .writing-vertical { writing-mode: vertical-lr; }
+  .text-balance { text-wrap: balance; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+}
+
+/* Custom animations for page transitions */
+.page-enter { opacity: 0; transform: translateY(20px); }
+.page-enter-active { opacity: 1; transform: translateY(0); transition: opacity 0.5s ease, transform 0.5s ease; }
+.page-exit { opacity: 1; }
+.page-exit-active { opacity: 0; transition: opacity 0.3s ease; }
