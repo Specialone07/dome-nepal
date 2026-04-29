@@ -15,17 +15,20 @@ api.interceptors.response.use(
   (res) => res,
   (error) => {
     const status = error.response?.status
+    const url    = error.config?.url
 
     if (status === 401) {
       useAuthStore.getState().logout()
-      window.location.href = '/dome-admin-login-4829'
+
+      // ✅ Only redirect if already on an admin page, not on every 401
+      if (url?.includes('/admin') && window.location.pathname.startsWith('/admin')) {
+        window.location.href = ADMIN_LOGIN
+      }
     }
 
     return Promise.reject(error)
   }
 )
-
-
 
 export const authAPI = {
   adminLogin: (data) => api.post('/auth/admin-login', data),
