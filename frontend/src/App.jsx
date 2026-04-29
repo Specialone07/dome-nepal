@@ -42,7 +42,7 @@ export default function App() {
   const checkAuth = useAuthStore((s) => s.checkAuth)
   const isLoading = useAuthStore((s) => s.isLoading)
 
-  // ✅ AUTH INIT (RUN ONLY ONCE)
+  // ✅ AUTH INIT — run only once on mount
   useEffect(() => {
     let isMounted = true
 
@@ -60,7 +60,7 @@ export default function App() {
     return () => {
       isMounted = false
     }
-  }, [checkAuth])
+  }, []) // ✅ Empty array — intentionally run once only
 
   // ⏳ LOADING SCREEN
   if (isLoading) {
