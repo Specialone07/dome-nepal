@@ -1,51 +1,47 @@
 const jwt = require('jsonwebtoken')
 
+const ACCESS_TOKEN_SECRET  = process.env.ACCESS_TOKEN_SECRET
+const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET
+
 const isProd = process.env.NODE_ENV === 'production'
 
-const COOKIE_OPTIONS_BASE = {
+// ── Generate Tokens ──────────────────────────────────────────────
+const generateAccessToken = (id, role) =>
+  jwt.sign({ id, role }, ACCESS_TOKEN_SECRET, { expiresIn: '15m' })
+
+const generateRefreshToken = (id) =>
+  jwt.sign({ id }, REFRESH_TOKEN_SECRET, { expiresIn: '7d' })
+
+// ── Verify Tokens ────────────────────────────────────────────────
+const verifyAccessToken  = (token) => jwt.verify(token, ACCESS_TOKEN_SECRET)
+const verifyRefreshToken = (token) => jwt.verify(token, REFRESH_TOKEN_SECRET)
+
+// ── Cookie Options ───────────────────────────────────────────────
+const accessCookieOptions = {
   httpOnly: true,
-  secure: isProd,
-  sameSite: isProd ? 'strict' : 'lax',
+  secure: isProd,         // ✅ HTTPS only in production
+  sameSite: isProd ? 'None' : 'Lax', // ✅ 'None' required for cross-origin in prod
+  maxAge: 15 * 60 * 1000             // 15 minutes
 }
 
-// ─── Token Generators ───────────────────────────────────────────
-const generateAccessToken = (userId, role) =>
-  jwt.sign(
-    { id: userId, role },
-    process.env.JWT_ACCESS_SECRET,
-    { expiresIn: '15m' }
-  )
+const refreshCookieOptions = {
+  httpOnly: true,
+  secure: isProd,
+  sameSite: isProd ? 'None' : 'Lax',
+  maxAge: 7 * 24 * 60 * 60 * 1000   // 7 days
+}
 
-const generateRefreshToken = (userId) =>
-  jwt.sign(
-    { id: userId },
-    process.env.JWT_REFRESH_SECRET,
-    { expiresIn: '7d' }
-  )
-
-// ─── Token Verifiers ────────────────────────────────────────────
-const verifyAccessToken = (token) =>
-  jwt.verify(token, process.env.JWT_ACCESS_SECRET)
-
-const verifyRefreshToken = (token) =>
-  jwt.verify(token, process.env.JWT_REFRESH_SECRET)
-
-// ─── Cookie Helpers ─────────────────────────────────────────────
+// ── Set Cookies ──────────────────────────────────────────────────
 const setAccessTokenCookie = (res, token) =>
-  res.cookie('accessToken', token, {
-    ...COOKIE_OPTIONS_BASE,
-    maxAge: 15 * 60 * 1000, // 15 minutes
-  })
+  res.cookie('accessToken', token, accessCookieOptions)
 
 const setRefreshTokenCookie = (res, token) =>
-  res.cookie('refreshToken', token, {
-    ...COOKIE_OPTIONS_BASE,
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-  })
+  res.cookie('refreshToken', token, refreshCookieOptions)
 
+// ── Clear Cookies ────────────────────────────────────────────────
 const clearAuthCookies = (res) => {
-  res.clearCookie('accessToken', COOKIE_OPTIONS_BASE)
-  res.clearCookie('refreshToken', COOKIE_OPTIONS_BASE)
+  res.clearCookie('accessToken',  { ...accessCookieOptions,  maxAge: 0 })
+  res.clearCookie('refreshToken', { ...refreshCookieOptions, maxAge: 0 })
 }
 
 module.exports = {
