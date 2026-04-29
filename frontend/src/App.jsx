@@ -42,15 +42,27 @@ export default function App() {
   const checkAuth = useAuthStore((s) => s.checkAuth)
   const isLoading = useAuthStore((s) => s.isLoading)
 
-  // 🔐 AUTH CHECK ON APP LOAD
+  // ✅ AUTH INIT (RUN ONLY ONCE)
   useEffect(() => {
-    const initAuth = async () => {
-      await checkAuth()
-    }
-    initAuth()
-  }, [])
+    let isMounted = true
 
-  // ⏳ LOADING STATE (IMPORTANT FOR COOKIE AUTH)
+    const initAuth = async () => {
+      try {
+        if (!isMounted) return
+        await checkAuth()
+      } catch (err) {
+        console.error('Auth check failed:', err)
+      }
+    }
+
+    initAuth()
+
+    return () => {
+      isMounted = false
+    }
+  }, [checkAuth])
+
+  // ⏳ LOADING SCREEN
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
@@ -95,7 +107,7 @@ export default function App() {
           <Route path="/wishlist" element={<MainLayout><WishlistPage /></MainLayout>} />
           <Route path="/checkout" element={<MainLayout><CheckoutPage /></MainLayout>} />
 
-          {/* ================= 404 PAGE ================= */}
+          {/* ================= 404 ================= */}
           <Route
             path="*"
             element={
@@ -104,10 +116,7 @@ export default function App() {
                   <h1 className="text-5xl text-stone-300">404</h1>
                   <p className="text-stone-400 mt-2">Page not found</p>
 
-                  <a
-                    href="/"
-                    className="btn-primary mt-6 inline-flex"
-                  >
+                  <a href="/" className="btn-primary mt-6 inline-flex">
                     Return Home
                   </a>
                 </div>
