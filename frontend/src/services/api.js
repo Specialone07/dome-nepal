@@ -11,24 +11,79 @@ const api = axios.create({
 /* ─────────────────────────────
    RESPONSE INTERCEPTOR (ONLY ONE)
 ───────────────────────────── */
+let isRefreshing = false
+let failedQueue = []
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach(prom =>
+    error ? prom.reject(error) : prom.resolve(token)
+  )
+  failedQueue = []
+}
+
+/* ─────────────────────────────
+   RESPONSE INTERCEPTOR (ONLY ONE)
+───────────────────────────── */
 api.interceptors.response.use(
-  (res) => res,
-  (error) => {
-    const status = error.response?.status
-    const url    = error.config?.url
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config
 
-    if (status === 401) {
-      useAuthStore.getState().logout()
+    const is401 = error.response?.status === 401
+    const isRefreshCall = originalRequest?.url?.includes('/auth/refresh')
 
-      // ✅ Only redirect if already on an admin page, not on every 401
-      if (url?.includes('/admin') && window.location.pathname.startsWith('/admin')) {
-        window.location.href = ADMIN_LOGIN
+    if (is401 && !isRefreshCall && !originalRequest._retry) {
+      const isAuthenticated = useAuthStore.getState().isAuthenticated
+
+      // If user not logged in → just reject
+      if (!isAuthenticated) {
+        return Promise.reject(error)
+      }
+
+      // If refresh already running → queue request
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject })
+        }).then((token) => {
+          originalRequest.headers.Authorization = `Bearer ${token}`
+          return api(originalRequest)
+        })
+      }
+
+      originalRequest._retry = true
+      isRefreshing = true
+
+      try {
+        const { data } = await api.post('/auth/refresh')
+
+        const newToken = data?.data?.accessToken
+
+        if (newToken) {
+          useAuthStore.getState().setToken(newToken)
+        }
+
+        processQueue(null, newToken)
+
+        originalRequest.headers.Authorization = `Bearer ${newToken}`
+        return api(originalRequest)
+
+      } catch (refreshError) {
+        processQueue(refreshError, null)
+
+        useAuthStore.getState().logout()
+        window.location.href = '/dome-admin-login-4829'
+
+        return Promise.reject(refreshError)
+
+      } finally {
+        isRefreshing = false
       }
     }
 
     return Promise.reject(error)
   }
 )
+
 
 export const authAPI = {
   adminLogin: (data) => api.post('/auth/admin-login', data),
