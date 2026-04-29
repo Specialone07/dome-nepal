@@ -32,11 +32,20 @@ const app = express();
 // ── SECURITY ─────────────────────────────────
 app.use(helmet());
 
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://dome-nepal-umber.vercel.app'
+];
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'https://dome-nepal-umber.vercel.app/',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-guest-id']
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS not allowed'));
+    }
+  },
+  credentials: true
 }));
 
 // ── RATE LIMITING ────────────────────────────
