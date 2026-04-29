@@ -1,170 +1,131 @@
-import { create } from 'zustand'
-import { persist, createJSONStorage } from 'zustand/middleware'
-import { authAPI } from '../services/api'
+import { useEffect } from 'react'
+import { Routes, Route, useLocation } from 'react-router-dom'
+import { AnimatePresence } from 'framer-motion'
 
-/* =========================
-   AUTH STORE
-========================= */
-export const useAuthStore = create((set, get) => ({
-  user: null,
-  isAuthenticated: false,
-  isLoading: true,
+import Navbar from './components/layout/Navbar'
+import Footer from './components/layout/Footer'
+import CartDrawer from './components/cart/CartDrawer'
+import FloatingSocial from './components/FloatingSocial'
 
-  checkAuth: async () => {
-    try {
-      const res = await authAPI.me()
-      set({
-        user: res.data.data.user,
-        isAuthenticated: true,
-        isLoading: false,
-      })
-    } catch {
-      set({
-        user: null,
-        isAuthenticated: false,
-        isLoading: false,
-      })
-    }
-  },
+import HomePage from './pages/HomePage'
+import ShopPage from './pages/ShopPage'
+import ProductDetailPage from './pages/ProductDetailPage'
+import CheckoutPage from './pages/CheckoutPage'
+import WishlistPage from './pages/WishlistPage'
 
-  login: (user) =>
-    set({
-      user,
-      isAuthenticated: true,
-      isLoading: false,
-    }),
+import AdminLayout from './pages/admin/AdminLayout'
+import AdminDashboard from './pages/admin/AdminDashboard'
+import AdminProducts from './pages/admin/AdminProducts'
+import AdminOrders from './pages/admin/AdminOrders'
+import AdminLogin from './pages/admin/AdminLogin'
+import AdminOrderDetails from './pages/admin/AdminOrderDetails'
 
-  logout: () =>
-    set({
-      user: null,
-      isAuthenticated: false,
-      isLoading: false,
-    }),
+import { AdminRoute } from './routes/ProtectedRoutes'
+import { useAuthStore } from './stores'
 
-  isAdmin: () =>
-    ['admin', 'superadmin'].includes(get().user?.role),
-}))
-
-/* =========================
-   CART STORE
-========================= */
-export const useCartStore = create(
-  persist(
-    (set, get) => ({
-      items: [],
-      isOpen: false,
-
-      openCart: () => set({ isOpen: true }),
-      closeCart: () => set({ isOpen: false }),
-      toggleCart: () => set((s) => ({ isOpen: !s.isOpen })),
-
-      addItem: (product, size, color, quantity = 1) => {
-        const items = get().items
-        const key = `${product._id}-${size}-${color}`
-        const existing = items.find((i) => i.key === key)
-
-        if (existing) {
-          set({
-            items: items.map((i) =>
-              i.key === key ? { ...i, quantity: i.quantity + quantity } : i
-            ),
-          })
-        } else {
-          set({
-            items: [
-              ...items,
-              {
-                key,
-                product: product._id,
-                name: product.name,
-                slug: product.slug,
-                image: product.images?.[0]?.url || '',
-                price: product.price,
-                size,
-                color,
-                quantity,
-              },
-            ],
-          })
-        }
-
-        set({ isOpen: true })
-      },
-
-      removeItem: (key) =>
-        set((s) => ({ items: s.items.filter((i) => i.key !== key) })),
-
-      updateQty: (key, quantity) => {
-        if (quantity < 1) {
-          get().removeItem(key)
-          return
-        }
-
-        set((s) => ({
-          items: s.items.map((i) =>
-            i.key === key ? { ...i, quantity } : i
-          ),
-        }))
-      },
-
-      clearCart: () => set({ items: [] }),
-    }),
-    {
-      name: 'cart-store',
-      storage: createJSONStorage(() => localStorage),
-    }
+// ================= MAIN LAYOUT =================
+function MainLayout({ children }) {
+  return (
+    <div className="flex flex-col min-h-screen">
+      <Navbar />
+      <main className="flex-1">{children}</main>
+      <Footer />
+      <CartDrawer />
+    </div>
   )
-)
+}
 
-/* =========================
-   UI STORE (FIXED - SINGLE VERSION)
-========================= */
+// ================= APP =================
+export default function App() {
+  const location = useLocation()
 
-export const useUIStore = create((set) => ({
-  /* sidebar */
-  isSidebarOpen: false,
+  const checkAuth = useAuthStore((s) => s.checkAuth)
+  const isLoading = useAuthStore((s) => s.isLoading)
 
-  toggleSidebar: () =>
-    set((s) => ({ isSidebarOpen: !s.isSidebarOpen })),
+  // ✅ AUTH INIT — run only once on mount
+  useEffect(() => {
+    let isMounted = true
 
-  /* mobile menu (MATCH NAVBAR NAMES) */
-  mobileMenuOpen: false,
-
-  openMobileMenu: () => set({ mobileMenuOpen: true }),
-  closeMobileMenu: () => set({ mobileMenuOpen: false }),
-  toggleMobileMenu: () =>
-    set((s) => ({ mobileMenuOpen: !s.mobileMenuOpen })),
-
-  /* search (MATCH NAVBAR NAMES) */
-  searchOpen: false,
-
-  openSearch: () => set({ searchOpen: true }),
-  closeSearch: () => set({ searchOpen: false }),
-  toggleSearch: () =>
-    set((s) => ({ searchOpen: !s.searchOpen })),
-}))
-/* =========================
-   WISHLIST STORE
-========================= */
-export const useWishlistStore = create(
-  persist(
-    (set, get) => ({
-      items: [],
-
-      toggle: (productId) => {
-        const items = get().items
-        set({
-          items: items.includes(productId)
-            ? items.filter((id) => id !== productId)
-            : [...items, productId],
-        })
-      },
-
-      has: (productId) => get().items.includes(productId),
-    }),
-    {
-      name: 'wishlist-store',
-      storage: createJSONStorage(() => localStorage),
+    const initAuth = async () => {
+      try {
+        if (!isMounted) return
+        await checkAuth()
+      } catch (err) {
+        console.error('Auth check failed:', err)
+      }
     }
+
+    initAuth()
+
+    return () => {
+      isMounted = false
+    }
+  }, []) // ✅ Empty array — intentionally run once only
+
+  // ⏳ LOADING SCREEN
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  return (
+    <>
+      {/* GLOBAL COMPONENTS */}
+      <FloatingSocial />
+
+      <AnimatePresence mode="wait">
+        <Routes location={location} key={location.pathname}>
+
+          {/* ================= ADMIN LOGIN ================= */}
+          <Route
+            path="/dome-admin-login-4829"
+            element={<AdminLogin />}
+          />
+
+          {/* ================= ADMIN ROUTES ================= */}
+          <Route
+            path="/admin"
+            element={
+              <AdminRoute>
+                <AdminLayout />
+              </AdminRoute>
+            }
+          >
+            <Route index element={<AdminDashboard />} />
+            <Route path="products" element={<AdminProducts />} />
+            <Route path="orders" element={<AdminOrders />} />
+            <Route path="orders/:id" element={<AdminOrderDetails />} />
+          </Route>
+
+          {/* ================= PUBLIC ROUTES ================= */}
+          <Route path="/" element={<MainLayout><HomePage /></MainLayout>} />
+          <Route path="/shop" element={<MainLayout><ShopPage /></MainLayout>} />
+          <Route path="/products/:slug" element={<MainLayout><ProductDetailPage /></MainLayout>} />
+          <Route path="/wishlist" element={<MainLayout><WishlistPage /></MainLayout>} />
+          <Route path="/checkout" element={<MainLayout><CheckoutPage /></MainLayout>} />
+
+          {/* ================= 404 ================= */}
+          <Route
+            path="*"
+            element={
+              <MainLayout>
+                <div className="page-container py-32 text-center">
+                  <h1 className="text-5xl text-stone-300">404</h1>
+                  <p className="text-stone-400 mt-2">Page not found</p>
+
+                  <a href="/" className="btn-primary mt-6 inline-flex">
+                    Return Home
+                  </a>
+                </div>
+              </MainLayout>
+            }
+          />
+
+        </Routes>
+      </AnimatePresence>
+    </>
   )
-)
+}
