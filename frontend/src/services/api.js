@@ -1,91 +1,32 @@
 import axios from 'axios'
 import { useAuthStore } from '../stores'
 
+
 const api = axios.create({
   baseURL: 'https://dome-nepal-1.onrender.com/api',
-  withCredentials: true,
-  headers: { 'Content-Type': 'application/json' }
+  withCredentials: true, // ✅ REQUIRED for cookies
 })
-
 /* ─────────────────────────────
-   REFRESH CONTROL (GLOBAL LOCK)
-───────────────────────────── */
-let isRefreshing = false
-let failedQueue = []
-
-const processQueue = (error, token = null) => {
-  failedQueue.forEach(prom =>
-    error ? prom.reject(error) : prom.resolve(token)
-  )
-  failedQueue = []
-}
 
 /* ─────────────────────────────
    RESPONSE INTERCEPTOR (ONLY ONE)
 ───────────────────────────── */
 api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config
+  (res) => res,
+  (error) => {
+    const status = error.response?.status
 
-    const is401 = error.response?.status === 401
-    const isRefreshCall = originalRequest?.url?.includes('/auth/refresh')
-
-    if (is401 && !isRefreshCall && !originalRequest._retry) {
-      const isAuthenticated = useAuthStore.getState().isAuthenticated
-
-      // If user not logged in → just reject
-      if (!isAuthenticated) {
-        return Promise.reject(error)
-      }
-
-      // If refresh already running → queue request
-      if (isRefreshing) {
-        return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject })
-        }).then((token) => {
-          originalRequest.headers.Authorization = `Bearer ${token}`
-          return api(originalRequest)
-        })
-      }
-
-      originalRequest._retry = true
-      isRefreshing = true
-
-      try {
-        const { data } = await api.post('/auth/refresh')
-
-        const newToken = data?.data?.accessToken
-
-        if (newToken) {
-          useAuthStore.getState().setToken(newToken)
-        }
-
-        processQueue(null, newToken)
-
-        originalRequest.headers.Authorization = `Bearer ${newToken}`
-        return api(originalRequest)
-
-      } catch (refreshError) {
-        processQueue(refreshError, null)
-
-        useAuthStore.getState().logout()
-        window.location.href = '/dome-admin-login-4829'
-
-        return Promise.reject(refreshError)
-
-      } finally {
-        isRefreshing = false
-      }
+    if (status === 401) {
+      useAuthStore.getState().logout()
+      window.location.href = '/dome-admin-login-4829'
     }
 
     return Promise.reject(error)
   }
 )
 
-/* ─────────────────────────────
-   AUTH API
-───────────────────────────── */
+
+
 export const authAPI = {
   adminLogin: (data) => api.post('/auth/admin-login', data),
   register: (data) => api.post('/auth/register', data),

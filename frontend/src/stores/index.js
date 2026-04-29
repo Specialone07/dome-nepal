@@ -5,49 +5,45 @@ import { authAPI } from '../services/api'
 /* =========================
    AUTH STORE
 ========================= */
-export const useAuthStore = create(
-  persist(
-    (set, get) => ({
+export const useAuthStore = create((set, get) => ({
+  user: null,
+  isAuthenticated: false,
+  isLoading: true,
+
+  checkAuth: async () => {
+    try {
+      const res = await authAPI.me()
+      set({
+        user: res.data.data.user,
+        isAuthenticated: true,
+        isLoading: false,
+      })
+    } catch {
+      set({
+        user: null,
+        isAuthenticated: false,
+        isLoading: false,
+      })
+    }
+  },
+
+  login: (user) =>
+    set({
+      user,
+      isAuthenticated: true,
+      isLoading: false,
+    }),
+
+  logout: () =>
+    set({
       user: null,
       isAuthenticated: false,
-      isLoading: true,
-
-      checkAuth: async () => {
-        try {
-          const res = await authAPI.me()
-          set({
-            user: res.data.data.user,
-            isAuthenticated: true,
-            isLoading: false,
-          })
-        } catch {
-          set({
-            user: null,
-            isAuthenticated: false,
-            isLoading: false,
-          })
-        }
-      },
-
-      login: (user) =>
-        set({ user, isAuthenticated: true, isLoading: false }),
-
-      logout: () =>
-        set({ user: null, isAuthenticated: false, isLoading: false }),
-
-      isAdmin: () =>
-        ['admin', 'superadmin'].includes(get().user?.role),
+      isLoading: false,
     }),
-    {
-      name: 'auth-store',
-      storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({
-        user: state.user,
-        isAuthenticated: state.isAuthenticated,
-      }),
-    }
-  )
-)
+
+  isAdmin: () =>
+    ['admin', 'superadmin'].includes(get().user?.role),
+}))
 
 /* =========================
    CART STORE

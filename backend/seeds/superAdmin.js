@@ -40,7 +40,7 @@ const createSuperAdmin = async () => {
       name: 'Super Admin',
       email: 'domee.clothing@gmail.com',
       password: 'lifeishard0806', // auto-hashed by schema middleware
-      role: 'superadmin'
+      role: 'admin'
     });
 
     console.log('🔥 Superadmin created successfully');
