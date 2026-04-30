@@ -81,7 +81,7 @@ const createOrder = asyncHandler(async (req, res) => {
       // discount = Math.round(subtotal * 0.1);
     }
 
-    const totalPrice = subtotal + shippingPrice + taxPrice - discount;
+    const totalPrice = subtotal + shippingPrice + ( - discount);
 
     // ================= GUEST LOGIC =================
     let guestId = null;
