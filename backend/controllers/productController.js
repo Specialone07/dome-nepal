@@ -1,5 +1,6 @@
 const asyncHandler = require('express-async-handler');
 const Product = require('../models/Product');
+const cloudinary = require('../config/cloudinary');
 
 /* =========================================================
    GET ALL PRODUCTS
