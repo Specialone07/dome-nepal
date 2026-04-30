@@ -318,6 +318,8 @@ const createProduct = asyncHandler(async (req, res) => {
 ========================================================= */
 
 
+
+
 const updateProduct = asyncHandler(async (req, res) => {
   try {
     const data = { ...req.body };
@@ -334,8 +336,20 @@ const updateProduct = asyncHandler(async (req, res) => {
     data.isNew = data.isNew === 'true';
     data.isBestSeller = data.isBestSeller === 'true';
 
-    if (data.variants && typeof data.variants === 'string') {
-      data.variants = JSON.parse(data.variants);
+    // =====================
+    // VARIANTS FIX (CRITICAL)
+    // =====================
+    if (typeof data.variants === 'string') {
+      try {
+        data.variants = JSON.parse(data.variants);
+      } catch (err) {
+        console.log("Variant parse error:", err.message);
+        data.variants = [];
+      }
+    }
+
+    if (!Array.isArray(data.variants)) {
+      data.variants = [];
     }
 
     // =====================
@@ -356,10 +370,10 @@ const updateProduct = asyncHandler(async (req, res) => {
     let updatedImages = existingProduct.images || [];
 
     if (req.files && req.files.length > 0) {
-      
-      // Delete old images from cloudinary
+
+      // 🧹 DELETE OLD IMAGES (SAFE)
       for (const img of existingProduct.images) {
-        if (img.publicId) {
+        if (img?.publicId && cloudinary?.uploader?.destroy) {
           try {
             await cloudinary.uploader.destroy(img.publicId);
           } catch (err) {
@@ -368,10 +382,10 @@ const updateProduct = asyncHandler(async (req, res) => {
         }
       }
 
-      // NEW images (multer already uploaded them)
+      // 🆕 NEW IMAGES FROM MULTER (already uploaded by CloudinaryStorage)
       updatedImages = req.files.map(file => ({
-        url: file.path,
-        publicId: file.filename,
+        url: file.path,        // Cloudinary URL
+        publicId: file.filename, // Cloudinary public_id
         alt: data.name || existingProduct.name
       }));
     }
@@ -384,7 +398,10 @@ const updateProduct = asyncHandler(async (req, res) => {
     const product = await Product.findByIdAndUpdate(
       req.params.id,
       data,
-      { new: true, runValidators: true }
+      {
+        new: true,
+        runValidators: true
+      }
     );
 
     res.json({
@@ -401,6 +418,7 @@ const updateProduct = asyncHandler(async (req, res) => {
     });
   }
 });
+
 
 /* =========================================================
    DELETE PRODUCT (SOFT DELETE)
