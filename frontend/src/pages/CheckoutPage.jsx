@@ -20,15 +20,15 @@ export default function CheckoutPage() {
   const navigate = useNavigate()
 
   const [shipping, setShipping] = useState({
-    name: user?.name || '', phone: '', street: '', city: '', state: '', zip: '', country: 'Nepal'
+    name: user?.name || '', phone: '', street: '', city: '', state: '', country: 'Nepal'
   })
   const [paymentMethod, setPaymentMethod] = useState('cash_on_delivery')
 
   const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0)
   const shippingFee = subtotal >= 5000 ? 0 : 200
-  const tax = Math.round(subtotal * 0.13)
+  // const tax = Math.round(subtotal * 0.13)
   const discount = couponApplied ? Math.round(subtotal * 0.1) : 0
-  const total = subtotal + shippingFee + tax - discount
+  const total = subtotal + shippingFee + (- discount)
 
   const handleShippingSubmit = (e) => {
     e.preventDefault()
@@ -58,7 +58,7 @@ const handlePlaceOrder = async () => {
           street: shipping.street,
           city: shipping.city,
           state: shipping.state,
-          zip: shipping.zip,
+          // zip: shipping.zip,
           country: shipping.country,
           phone: shipping.phone,
         },
@@ -186,11 +186,6 @@ const handlePlaceOrder = async () => {
     <label className="block text-xs tracking-widest uppercase text-stone-500 mb-1.5">State / Province *</label>  {/* ✅ added */}
     <input value={shipping.state} onChange={e => setShipping(s => ({...s, state: e.target.value}))}
       required className="input-field" placeholder="Bagmati" />
-  </div>
-  <div>
-    <label className="block text-xs tracking-widest uppercase text-stone-500 mb-1.5">ZIP Code *</label>
-    <input value={shipping.zip} onChange={e => setShipping(s => ({...s, zip: e.target.value}))}
-      required className="input-field" placeholder="44600" />
   </div>
   <div className="col-span-2">
     <label className="block text-xs tracking-widests uppercase text-stone-500 mb-1.5">Country</label>
