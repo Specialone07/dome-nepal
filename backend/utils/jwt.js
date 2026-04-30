@@ -4,8 +4,8 @@ const isProd = process.env.NODE_ENV === 'production'
 
 const COOKIE_OPTIONS_BASE = {
   httpOnly: true,
-  secure: isProd,
-  sameSite: isProd ? 'strict' : 'lax',
+  secure: true,
+  sameSite: 'none',
 }
 
 // ─── Token Generators ───────────────────────────────────────────

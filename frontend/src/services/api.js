@@ -1,7 +1,6 @@
 import axios from 'axios'
 import { useAuthStore } from '../stores'
 
-
 const api = axios.create({
   baseURL: 'https://dome-nepal-1.onrender.com/api',
   withCredentials: true, // ✅ REQUIRED for cookies
@@ -10,15 +9,15 @@ const api = axios.create({
 let isRefreshing = false
 let failedQueue = []
 
-const processQueue = (error, token = null) => {
+const processQueue = (error = null) => {
   failedQueue.forEach(prom =>
-    error ? prom.reject(error) : prom.resolve(token)
+    error ? prom.reject(error) : prom.resolve()
   )
   failedQueue = []
 }
 
 /* ─────────────────────────────
-   RESPONSE INTERCEPTOR (ONLY ONE)
+   RESPONSE INTERCEPTOR (COOKIE-BASED)
 ───────────────────────────── */
 api.interceptors.response.use(
   (response) => response,
@@ -31,40 +30,32 @@ api.interceptors.response.use(
     if (is401 && !isRefreshCall && !originalRequest._retry) {
       const isAuthenticated = useAuthStore.getState().isAuthenticated
 
-      // If user not logged in → just reject
+      // If user not logged in → reject
       if (!isAuthenticated) {
         return Promise.reject(error)
       }
 
-      // If refresh already running → queue request
+      // If refresh already running → queue requests
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject })
-        }).then((token) => {
-          originalRequest.headers.Authorization = `Bearer ${token}`
-          return api(originalRequest)
-        })
+        }).then(() => api(originalRequest))
       }
 
       originalRequest._retry = true
       isRefreshing = true
 
       try {
-        const { data } = await api.post('/auth/refresh')
+        // ✅ Cookie-based refresh (no token handling)
+        await api.post('/auth/refresh')
 
-        const newToken = data?.data?.accessToken
+        processQueue()
 
-        if (newToken) {
-          useAuthStore.getState().setToken(newToken)
-        }
-
-        processQueue(null, newToken)
-
-        originalRequest.headers.Authorization = `Bearer ${newToken}`
+        // Retry original request (cookies auto-attached)
         return api(originalRequest)
 
       } catch (refreshError) {
-        processQueue(refreshError, null)
+        processQueue(refreshError)
 
         useAuthStore.getState().logout()
         window.location.href = '/dome-admin-login-4829'
@@ -154,7 +145,6 @@ export const orderAPI = {
 
   getAll: (params) => api.get('/orders', { params })
 }
-
 
 /* ─────────────────────────────
    OTHER APIs
