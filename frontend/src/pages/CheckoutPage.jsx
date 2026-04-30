@@ -308,9 +308,9 @@ const handlePlaceOrder = async () => {
                       
                     </div>
                     <p>
-                     Note: 🚚 Delivery charge will be calculated based on the shipping address. for now ignore the shipping fee if your address is within Kathmandu Valley. 
-                     For outside valley, delivery charges may vary based on the location.
-                      We will contact you for the exact shipping fee and payment after you place the order.
+                    🚚 Delivery Note:
+Inside Kathmandu Valley, delivery charge is Rs. 100. For outside the valley, charges vary based on location—we’ll 
+contact you after your order to confirm the exact delivery fee and payment details.
                     </p>
                   </div>
                 </div>
