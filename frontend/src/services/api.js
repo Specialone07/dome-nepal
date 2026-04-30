@@ -30,56 +30,34 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config
 
+    const url = originalRequest?.url || ''
+
+    const isRefreshCall = url.includes('/auth/refresh')
+    const isMeCall = url.includes('/auth/me')
+
     const is401 = error.response?.status === 401
-    const isRefreshCall = originalRequest?.url?.includes('/auth/refresh')
 
-    // 🔁 Handle expired access token
-    if (is401 && !isRefreshCall && !originalRequest._retry) {
+    // 🚫 NEVER retry these routes
+    if (isRefreshCall || isMeCall) {
+      return Promise.reject(error)
+    }
 
+    if (is401 && !originalRequest._retry) {
       originalRequest._retry = true
 
-      // ❌ If refresh already running → queue request
-      if (isRefreshing) {
-        return new Promise((resolve, reject) => {
-          failedQueue.push({
-            resolve: () => resolve(api(originalRequest)),
-            reject
-          })
-        })
-      }
-
-      isRefreshing = true
-
       try {
-        // 🔥 Refresh uses cookies (no token needed)
         await api.post('/auth/refresh')
-
-        processQueue(null)
-
-        // 🔁 Retry original request
         return api(originalRequest)
-
-      } catch (refreshError) {
-
-        processQueue(refreshError)
-
-        // 🔐 Clear auth state
+      } catch (err) {
         useAuthStore.getState().logout()
-
-        // 🚪 Redirect to login
         window.location.href = '/dome-admin-login-4829'
-
-        return Promise.reject(refreshError)
-
-      } finally {
-        isRefreshing = false
+        return Promise.reject(err)
       }
     }
 
     return Promise.reject(error)
   }
 )
-
 /* ─────────────────────────────
    AUTH API
 ───────────────────────────── */
