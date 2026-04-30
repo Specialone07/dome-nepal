@@ -337,20 +337,34 @@ const updateProduct = asyncHandler(async (req, res) => {
     data.isBestSeller = data.isBestSeller === 'true';
 
     // =====================
-    // VARIANTS FIX (CRITICAL)
+    // VARIANTS SAFE PARSE
     // =====================
-    if (typeof data.variants === 'string') {
+    let variants = [];
+
+    if (data.variants) {
       try {
-        data.variants = JSON.parse(data.variants);
+        variants =
+          typeof data.variants === 'string'
+            ? JSON.parse(data.variants)
+            : data.variants;
+
+        if (!Array.isArray(variants)) {
+          variants = [];
+        }
       } catch (err) {
         console.log("Variant parse error:", err.message);
-        data.variants = [];
+        variants = [];
       }
     }
 
-    if (!Array.isArray(data.variants)) {
-      data.variants = [];
-    }
+    // sanitize variants for Mongo schema
+    data.variants = variants.map(v => ({
+      size: v.size || '',
+      color: v.color || '',
+      colorHex: v.colorHex || '#000000',
+      stock: Number(v.stock || 0),
+      sku: v.sku || `SKU-${v.size || 'M'}-${Date.now()}`
+    }));
 
     // =====================
     // FIND PRODUCT
@@ -371,7 +385,7 @@ const updateProduct = asyncHandler(async (req, res) => {
 
     if (req.files && req.files.length > 0) {
 
-      // 🧹 DELETE OLD IMAGES (SAFE)
+      // delete old images from cloudinary
       for (const img of existingProduct.images) {
         if (img?.publicId && cloudinary?.uploader?.destroy) {
           try {
@@ -382,10 +396,10 @@ const updateProduct = asyncHandler(async (req, res) => {
         }
       }
 
-      // 🆕 NEW IMAGES FROM MULTER (already uploaded by CloudinaryStorage)
+      // add new images
       updatedImages = req.files.map(file => ({
-        url: file.path,        // Cloudinary URL
-        publicId: file.filename, // Cloudinary public_id
+        url: file.path,
+        publicId: file.filename,
         alt: data.name || existingProduct.name
       }));
     }
@@ -404,7 +418,7 @@ const updateProduct = asyncHandler(async (req, res) => {
       }
     );
 
-    res.json({
+    return res.json({
       success: true,
       data: { product }
     });
@@ -412,13 +426,12 @@ const updateProduct = asyncHandler(async (req, res) => {
   } catch (error) {
     console.error("🔥 PRODUCT UPDATE ERROR:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: error.message
     });
   }
 });
-
 
 /* =========================================================
    DELETE PRODUCT (SOFT DELETE)

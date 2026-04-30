@@ -436,35 +436,61 @@ function ProductFormModal({ product, onClose }) {
     onError: err => toast.error(err?.response?.data?.message || 'Failed')
   })
 
-  const handleSubmit = (e) => {
-    e.preventDefault()
-    const seen = new Set()
-    for (let v of variants) {
-      if (!v.size || !v.color) { toast.error('Fill all variant fields'); return }
-      if (v.stock < 0) { toast.error('Stock cannot be negative'); return }
-      const key = `${v.size}-${v.color}`
-      if (seen.has(key)) { toast.error(`Duplicate variant: ${key}`); return }
-      seen.add(key)
+ const handleSubmit = (e) => {
+  e.preventDefault()
+
+  const seen = new Set()
+
+  for (let v of variants) {
+    if (!v.size || !v.color) {
+      toast.error('Fill all variant fields')
+      return
     }
 
-    const formData = new FormData()
-    Object.entries(form).forEach(([k, v]) => formData.append(k, v))
+    if (v.stock < 0) {
+      toast.error('Stock cannot be negative')
+      return
+    }
 
-    const variantMeta = variants.map(v => ({
-      ...v,
-      stock: Number(v.stock),
-      sku: `SKU-${v.size}-${v.color}-${Math.random().toString(36).slice(2,6).toUpperCase()}`,
-      imageIndex: v.imageId ? images.findIndex(img => img.id === v.imageId) : -1
-    }))
-    formData.append('variants', JSON.stringify(variantMeta))
-
-    // Append image colors / order metadata
-    const imageMeta = images.map((img, i) => ({ index: i, color: img.color, isExisting: img.isExisting }))
-    formData.append('imageMeta', JSON.stringify(imageMeta))
-
-    images.forEach(img => { if (img.file) formData.append('images', img.file) })
-    mutation.mutate(formData)
+    const key = `${v.size}-${v.color}`
+    if (seen.has(key)) {
+      toast.error(`Duplicate variant: ${key}`)
+      return
+    }
+    seen.add(key)
   }
+
+  const formData = new FormData()
+
+  // basic fields (avoid objects)
+  Object.entries(form).forEach(([k, v]) => {
+    if (typeof v === 'object') return
+    formData.append(k, v)
+  })
+
+  // variants → ALWAYS JSON string
+  formData.append(
+    'variants',
+    JSON.stringify(
+      variants.map(v => ({
+        size: v.size,
+        color: v.color,
+        colorHex: v.colorHex || '#000000',
+        stock: Number(v.stock || 0),
+        sku: v.sku || `SKU-${v.size}-${v.color}-${Date.now()}`,
+        imageId: v.imageId || ''
+      }))
+    )
+  )
+
+  // images
+  images.forEach(img => {
+    if (img.file) formData.append('images', img.file)
+  })
+
+  // 🔥 THIS WAS MISSING (CRITICAL)
+  mutation.mutate(formData)
+}
 
   const totalStock = variants.reduce((sum, v) => sum + Number(v.stock || 0), 0)
 

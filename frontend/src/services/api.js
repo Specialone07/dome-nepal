@@ -101,18 +101,14 @@ export const productAPI = {
     reviewAPI.getByProduct(productId),
 
   create: (data) =>
-    api.post('/products', data, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    }),
+    api.post('/products', data),
 
   update: (id, data) =>
-    api.put(`/products/${id}`, data, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    }),
+    api.put(`/products/${id}`, data), // ✅ FIXED
 
-  delete: (id) => api.delete(`/products/${id}`)
+  delete: (id) =>
+    api.delete(`/products/${id}`)
 }
-
 /* ─────────────────────────────
    REVIEW API
 ───────────────────────────── */
