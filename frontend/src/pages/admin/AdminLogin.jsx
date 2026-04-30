@@ -4,21 +4,21 @@ import { authAPI } from '../../services/api'
 import { useAuthStore } from '../../stores'
 
 export default function AdminLogin() {
-  const [email, setEmail] = useState('')
+  const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [error,    setError]    = useState('')
+  const [loading,  setLoading]  = useState(false)
 
-  const login = useAuthStore((s) => s.login)
-
+  const login    = useAuthStore((s) => s.login)
   const navigate = useNavigate()
   const location = useLocation()
-  const from = location.state?.from?.pathname || '/admin'
+  const from     = location.state?.from?.pathname || '/admin'
 
   const handleLogin = async (e) => {
     e.preventDefault()
-    setError('')
+    setError('') // ✅ clear previous error
 
+    // ✅ Client-side validation
     if (!email.trim() || !password.trim()) {
       setError('Email and password are required')
       return
@@ -26,19 +26,13 @@ export default function AdminLogin() {
 
     try {
       setLoading(true)
-
-      // 🔐 Step 1: login (sets cookies)
-      await authAPI.adminLogin({ email, password })
-
-      // 🔥 Step 2: get user from backend
-      const res = await authAPI.me()
+      const res  = await authAPI.adminLogin({ email, password })
       const user = res.data.data.user
 
-      // 💾 store in Zustand
+      // ✅ accessToken is now in httpOnly cookie — only user info in response
       login(user)
 
       navigate(from, { replace: true })
-
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed. Please try again.')
     } finally {
@@ -55,12 +49,14 @@ export default function AdminLogin() {
       >
         <h1 className="text-xl font-semibold mb-6">Admin Login</h1>
 
+        {/* ✅ State-based error — no alert() */}
         {error && (
           <p className="text-red-500 text-sm mb-4 bg-red-50 border border-red-200 rounded px-3 py-2">
             {error}
           </p>
         )}
 
+        {/* ✅ Controlled input with type and autocomplete */}
         <input
           type="email"
           name="email"

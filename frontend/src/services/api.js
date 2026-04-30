@@ -7,70 +7,88 @@ const api = axios.create({
   withCredentials: true, // ✅ REQUIRED for cookies
 })
 
-/* ─────────────────────────────
-   REFRESH CONTROL
-───────────────────────────── */
 let isRefreshing = false
 let failedQueue = []
 
-const processQueue = (error) => {
-  failedQueue.forEach(({ resolve, reject }) => {
-    if (error) reject(error)
-    else resolve()
-  })
-
+const processQueue = (error, token = null) => {
+  failedQueue.forEach(prom =>
+    error ? prom.reject(error) : prom.resolve(token)
+  )
   failedQueue = []
 }
 
 /* ─────────────────────────────
-   RESPONSE INTERCEPTOR
+   RESPONSE INTERCEPTOR (ONLY ONE)
 ───────────────────────────── */
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config
 
-    const url = originalRequest?.url || ''
-
-    const isRefreshCall = url.includes('/auth/refresh')
-    const isMeCall = url.includes('/auth/me')
-
     const is401 = error.response?.status === 401
+    const isRefreshCall = originalRequest?.url?.includes('/auth/refresh')
 
-    // 🚫 NEVER retry these routes
-    if (isRefreshCall || isMeCall) {
-      return Promise.reject(error)
-    }
+    if (is401 && !isRefreshCall && !originalRequest._retry) {
+      const isAuthenticated = useAuthStore.getState().isAuthenticated
 
-    if (is401 && !originalRequest._retry) {
+      // If user not logged in → just reject
+      if (!isAuthenticated) {
+        return Promise.reject(error)
+      }
+
+      // If refresh already running → queue request
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject })
+        }).then((token) => {
+          originalRequest.headers.Authorization = `Bearer ${token}`
+          return api(originalRequest)
+        })
+      }
+
       originalRequest._retry = true
+      isRefreshing = true
 
       try {
-        await api.post('/auth/refresh')
+        const { data } = await api.post('/auth/refresh')
+
+        const newToken = data?.data?.accessToken
+
+        if (newToken) {
+          useAuthStore.getState().setToken(newToken)
+        }
+
+        processQueue(null, newToken)
+
+        originalRequest.headers.Authorization = `Bearer ${newToken}`
         return api(originalRequest)
-      } catch (err) {
+
+      } catch (refreshError) {
+        processQueue(refreshError, null)
+
         useAuthStore.getState().logout()
         window.location.href = '/dome-admin-login-4829'
-        return Promise.reject(err)
+
+        return Promise.reject(refreshError)
+
+      } finally {
+        isRefreshing = false
       }
     }
 
     return Promise.reject(error)
   }
 )
+
 /* ─────────────────────────────
    AUTH API
 ───────────────────────────── */
 export const authAPI = {
   adminLogin: (data) => api.post('/auth/admin-login', data),
-
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
-
   refresh: () => api.post('/auth/refresh'),
   logout: () => api.post('/auth/logout'),
-
-  // 🔥 IMPORTANT (used after login & page refresh)
   me: () => api.get('/auth/me')
 }
 
@@ -84,10 +102,8 @@ export const productAPI = {
   getNewArrivals: () => api.get('/products/new-arrivals'),
   getBestSellers: () => api.get('/products/best-sellers'),
   getRelated: (id) => api.get(`/products/${id}/related`),
-
   search: (q, limit) =>
     api.get('/products/search', { params: { q, limit } }),
-
   getCategories: () => api.get('/products/categories'),
 
   getReviews: (productId) =>
@@ -133,12 +149,12 @@ export const orderAPI = {
     }),
 
   cancel: (id) => api.patch(`/orders/${id}/cancel`),
-
   updateStatus: (id, data) =>
     api.patch(`/orders/${id}/status`, data),
 
   getAll: (params) => api.get('/orders', { params })
 }
+
 
 /* ─────────────────────────────
    OTHER APIs

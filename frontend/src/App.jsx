@@ -37,55 +37,25 @@ function MainLayout({ children }) {
 
 // ================= APP =================
 export default function App() {
+  const checkAuth = useAuthStore((s) => s.checkAuth)
   const location = useLocation()
 
-  const checkAuth = useAuthStore((s) => s.checkAuth)
-  const isLoading = useAuthStore((s) => s.isLoading)
-
-  // ✅ AUTH INIT — run only once on mount
   useEffect(() => {
-    let isMounted = true
-
-    const initAuth = async () => {
-      try {
-        if (!isMounted) return
-        await checkAuth()
-      } catch (err) {
-        console.error('Auth check failed:', err)
-      }
-    }
-
-    initAuth()
-
-    return () => {
-      isMounted = false
-    }
-  }, []) // ✅ Empty array — intentionally run once only
-
-  // ⏳ LOADING SCREEN
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin" />
-      </div>
-    )
-  }
+    checkAuth()
+  }, [])
 
   return (
     <>
-      {/* GLOBAL COMPONENTS */}
+      {/* ✅ GLOBAL UI (NOT ROUTE-BOUND) */}
       <FloatingSocial />
 
       <AnimatePresence mode="wait">
         <Routes location={location} key={location.pathname}>
 
-          {/* ================= ADMIN LOGIN ================= */}
-          <Route
-            path="/dome-admin-login-4829"
-            element={<AdminLogin />}
-          />
+          {/* ADMIN LOGIN */}
+          <Route path="/dome-admin-login-4829" element={<AdminLogin />} />
 
-          {/* ================= ADMIN ROUTES ================= */}
+          {/* ADMIN */}
           <Route
             path="/admin"
             element={
@@ -100,22 +70,20 @@ export default function App() {
             <Route path="orders/:id" element={<AdminOrderDetails />} />
           </Route>
 
-          {/* ================= PUBLIC ROUTES ================= */}
+          {/* PUBLIC */}
           <Route path="/" element={<MainLayout><HomePage /></MainLayout>} />
           <Route path="/shop" element={<MainLayout><ShopPage /></MainLayout>} />
           <Route path="/products/:slug" element={<MainLayout><ProductDetailPage /></MainLayout>} />
           <Route path="/wishlist" element={<MainLayout><WishlistPage /></MainLayout>} />
           <Route path="/checkout" element={<MainLayout><CheckoutPage /></MainLayout>} />
 
-          {/* ================= 404 ================= */}
+          {/* 404 */}
           <Route
             path="*"
             element={
               <MainLayout>
                 <div className="page-container py-32 text-center">
                   <h1 className="text-5xl text-stone-300">404</h1>
-                  <p className="text-stone-400 mt-2">Page not found</p>
-
                   <a href="/" className="btn-primary mt-6 inline-flex">
                     Return Home
                   </a>

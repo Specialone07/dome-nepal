@@ -1,8 +1,9 @@
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../stores'
 
-const ADMIN_LOGIN = '/dome-admin-login-4829'
+const LOGIN_PATH = '/dome-admin-login-4829'
 
+// ─── Shared loading spinner ──────────────────────────────────────
 function AuthLoader() {
   return (
     <div className="h-screen flex items-center justify-center bg-obsidian-900">
@@ -11,6 +12,32 @@ function AuthLoader() {
   )
 }
 
+// =====================
+// USER PROTECTED
+// =====================
+export function ProtectedRoute({ children }) {
+  const { isAuthenticated, isLoading } = useAuthStore()
+  const location = useLocation()
+
+  // ✅ Wait for checkAuth to resolve — prevents false redirect
+  if (isLoading) return <AuthLoader />
+
+  if (!isAuthenticated) {
+    return (
+      <Navigate
+        to={LOGIN_PATH}
+        state={{ from: location }}
+        replace
+      />
+    )
+  }
+
+  return children
+}
+
+// =====================
+// ADMIN PROTECTED
+// =====================
 export function AdminRoute({ children }) {
   const { isAuthenticated, isLoading, user } = useAuthStore()
   const location = useLocation()
@@ -18,8 +45,14 @@ export function AdminRoute({ children }) {
   if (isLoading) return <AuthLoader />
 
   if (!isAuthenticated) {
-    // ✅ Don't redirect to login — just send to home
-    return <Navigate to="/" replace />
+    // ✅ Consistent: pass location state same as ProtectedRoute
+    return (
+      <Navigate
+        to={LOGIN_PATH}
+        state={{ from: location }}
+        replace
+      />
+    )
   }
 
   if (!['admin', 'superadmin'].includes(user?.role)) {
