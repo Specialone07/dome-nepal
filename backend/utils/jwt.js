@@ -5,7 +5,7 @@ const isProd = process.env.NODE_ENV === 'production'
 const COOKIE_OPTIONS_BASE = {
   httpOnly: true,
   secure: isProd,
-  sameSite: isProd ? 'None' : 'Lax', // ✅ 'None' required for cross-origin
+  sameSite: isProd ? 'strict' : 'lax',
 }
 
 // ─── Token Generators ───────────────────────────────────────────
@@ -34,18 +34,18 @@ const verifyRefreshToken = (token) =>
 const setAccessTokenCookie = (res, token) =>
   res.cookie('accessToken', token, {
     ...COOKIE_OPTIONS_BASE,
-    maxAge: 15 * 60 * 1000,
+    maxAge: 15 * 60 * 1000, // 15 minutes
   })
 
 const setRefreshTokenCookie = (res, token) =>
   res.cookie('refreshToken', token, {
     ...COOKIE_OPTIONS_BASE,
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   })
 
 const clearAuthCookies = (res) => {
-  res.clearCookie('accessToken',  { ...COOKIE_OPTIONS_BASE, maxAge: 0 })
-  res.clearCookie('refreshToken', { ...COOKIE_OPTIONS_BASE, maxAge: 0 })
+  res.clearCookie('accessToken', COOKIE_OPTIONS_BASE)
+  res.clearCookie('refreshToken', COOKIE_OPTIONS_BASE)
 }
 
 module.exports = {
