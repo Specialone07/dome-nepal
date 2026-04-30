@@ -74,11 +74,11 @@ const createOrder = asyncHandler(async (req, res) => {
 
     // ================= PRICING =================
     const shippingPrice = subtotal >= 5000 ? 0 : 200;
-    const taxPrice = Math.round(subtotal * 0.13);
+    // const taxPrice = Math.round(subtotal * 0.13);
 
     let discount = 0;
     if (couponCode === 'DOME10') {
-      discount = Math.round(subtotal * 0.1);
+      // discount = Math.round(subtotal * 0.1);
     }
 
     const totalPrice = subtotal + shippingPrice + taxPrice - discount;

@@ -12,7 +12,7 @@ import PageTransition from '../components/common/PageTransition'
 const CATEGORIES = [
   { label: 'Tops', slug: 'tops', desc: 'Refined essentials', img: 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=600&q=80' },
   { label: 'Outerwear', slug: 'outerwear', desc: 'Statement pieces', img: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=600&q=80' },
-  { label: 'Bottoms', slug: 'bottoms', desc: 'Modern silhouettes', img: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&q=80' },
+  { label: 'Bottoms', slug: 'bottoms', desc: 'Modern silhouettes', img: 'https://images.unsplash.com/photo-1704253800605-9d5becf3b0d0?q=80&w=687&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D' },
   { label: 'Accessories', slug: 'accessories', desc: 'Finishing touches', img: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=600&q=80' },
 ]
 
