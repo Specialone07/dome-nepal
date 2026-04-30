@@ -1,7 +1,7 @@
+
 const asyncHandler = require('express-async-handler');
 const Product = require('../models/Product');
-const cloudinary = require('../config/cloudinary');
-
+const { cloudinary } = require('../config/cloudinary');
 /* =========================================================
    GET ALL PRODUCTS
 ========================================================= */
@@ -316,6 +316,8 @@ const createProduct = asyncHandler(async (req, res) => {
 /* =========================================================
    UPDATE PRODUCT
 ========================================================= */
+
+
 const updateProduct = asyncHandler(async (req, res) => {
   try {
     const data = { ...req.body };
@@ -323,54 +325,62 @@ const updateProduct = asyncHandler(async (req, res) => {
     console.log("UPDATE BODY:", data);
     console.log("FILES:", req.files);
 
-    // ✅ Convert types
+    // =====================
+    // TYPE CONVERSION
+    // =====================
     if (data.price) data.price = Number(data.price);
+
     data.isFeatured = data.isFeatured === 'true';
-    data.isNew = data.isNew !== 'false';
+    data.isNew = data.isNew === 'true';
     data.isBestSeller = data.isBestSeller === 'true';
 
-    // ✅ Parse variants if sent as string
     if (data.variants && typeof data.variants === 'string') {
       data.variants = JSON.parse(data.variants);
     }
 
-    // 🔍 Find existing product
+    // =====================
+    // FIND PRODUCT
+    // =====================
     const existingProduct = await Product.findById(req.params.id);
+
     if (!existingProduct) {
-      res.status(404);
-      throw new Error('Product not found');
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
     }
 
-    // ✅ HANDLE IMAGE UPDATE
+    // =====================
+    // IMAGE UPDATE (SAFE)
+    // =====================
     let updatedImages = existingProduct.images || [];
 
     if (req.files && req.files.length > 0) {
-      // 🔥 delete old images from cloudinary
-      for (let img of existingProduct.images) {
+      
+      // Delete old images from cloudinary
+      for (const img of existingProduct.images) {
         if (img.publicId) {
-          await cloudinary.uploader.destroy(img.publicId);
+          try {
+            await cloudinary.uploader.destroy(img.publicId);
+          } catch (err) {
+            console.log("Cloudinary delete failed:", err.message);
+          }
         }
       }
 
-      // 🔥 upload new images
-      updatedImages = [];
-
-      for (let file of req.files) {
-        const result = await cloudinary.uploader.upload(file.path, {
-          folder: 'products'
-        });
-
-        updatedImages.push({
-          url: result.secure_url,
-          publicId: result.public_id,
-          alt: data.name || existingProduct.name
-        });
-      }
+      // NEW images (multer already uploaded them)
+      updatedImages = req.files.map(file => ({
+        url: file.path,
+        publicId: file.filename,
+        alt: data.name || existingProduct.name
+      }));
     }
 
     data.images = updatedImages;
 
-    // ✅ Update product
+    // =====================
+    // UPDATE PRODUCT
+    // =====================
     const product = await Product.findByIdAndUpdate(
       req.params.id,
       data,
@@ -384,13 +394,13 @@ const updateProduct = asyncHandler(async (req, res) => {
 
   } catch (error) {
     console.error("🔥 PRODUCT UPDATE ERROR:", error);
+
     res.status(500).json({
       success: false,
       message: error.message
     });
   }
 });
-
 
 /* =========================================================
    DELETE PRODUCT (SOFT DELETE)
