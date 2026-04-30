@@ -8,7 +8,7 @@ export default function CartDrawer() {
   const { items, isOpen, closeCart, removeItem, updateQty } = useCartStore()
 
   const subtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0)
-  const shipping = subtotal >= 5000 ? 0 : 200
+  const shipping = subtotal >= 5000 ? 0 : 180
   const total = subtotal + shipping
 
   return (
@@ -191,6 +191,9 @@ export default function CartDrawer() {
                   Proceed to Checkout
                   <ArrowRight size={14} />
                 </Link>
+                <p>
+                  Note: Inside valley delivery charge is Rs. 100. For outside the valley, charges vary based on location—we’ll contact you after your order to confirm the exact delivery fee and payment details.
+                </p>
 
                 <button
                   onClick={closeCart}
