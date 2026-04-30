@@ -339,33 +339,44 @@ const updateProduct = asyncHandler(async (req, res) => {
     // =====================
     // VARIANTS SAFE PARSE
     // =====================
-    let variants = [];
+    // =====================
+// VARIANTS SAFE + VALIDATED
+// =====================
+let variants = [];
 
-    if (data.variants) {
-      try {
-        variants =
-          typeof data.variants === 'string'
-            ? JSON.parse(data.variants)
-            : data.variants;
+if (data.variants) {
+  try {
+    variants =
+      typeof data.variants === 'string'
+        ? JSON.parse(data.variants)
+        : data.variants;
 
-        if (!Array.isArray(variants)) {
-          variants = [];
-        }
-      } catch (err) {
-        console.log("Variant parse error:", err.message);
-        variants = [];
-      }
+    if (!Array.isArray(variants)) {
+      variants = [];
     }
+  } catch (err) {
+    console.log("Variant parse error:", err.message);
+    variants = [];
+  }
+}
 
-    // sanitize variants for Mongo schema
-    data.variants = variants.map(v => ({
-      size: v.size || '',
-      color: v.color || '',
-      colorHex: v.colorHex || '#000000',
-      stock: Number(v.stock || 0),
-      sku: v.sku || `SKU-${v.size || 'M'}-${Date.now()}`
-    }));
+// 🔥 REMOVE INVALID VARIANTS
+variants = variants.filter(v =>
+  v &&
+  typeof v.size === 'string' &&
+  v.size.trim() !== '' &&
+  typeof v.color === 'string' &&
+  v.color.trim() !== ''
+);
 
+// 🔥 FINAL SAFE MAPPING
+data.variants = variants.map(v => ({
+  size: v.size.trim(),
+  color: v.color.trim(),
+  colorHex: v.colorHex || '#000000',
+  stock: Number(v.stock || 0),
+  sku: v.sku || `SKU-${v.size}-${Date.now()}`
+}));
     // =====================
     // FIND PRODUCT
     // =====================
