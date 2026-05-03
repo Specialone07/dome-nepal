@@ -44,30 +44,35 @@ const handlePlaceOrder = async () => {
   try {
     const guestId = localStorage.getItem('guestId')
 
-    const { data } = await orderAPI.create(
-      {
-        items: items.map(i => ({
-          product: i.product,
-          size: i.size,
-          color: i.color,
-          quantity: i.quantity,
-        })),
-        shippingAddress: {
-          name: shipping.name,
-          email:shipping.email,
-          street: shipping.street,
-          city: shipping.city,
-          state: shipping.state,
-          // zip: shipping.zip,
-          country: shipping.country,
-          phone: shipping.phone,
-        },
-        paymentMethod,
-         subtotal: subtotal,
-        couponCode: couponApplied ? coupon : '',
-      },
-      guestId  // ✅ pass guestId so api.js can attach it as header
-    )
+  const { data } = await orderAPI.create(
+  {
+    items: items.map(i => ({
+      product: i.product,
+      size: i.size,
+      color: i.color,
+      quantity: i.quantity,
+    })),
+    shippingAddress: {
+      name: shipping.name,
+      email: shipping.email,
+      street: shipping.street,
+      city: shipping.city,
+      state: shipping.state,
+      country: shipping.country,
+      phone: shipping.phone,
+    },
+    paymentMethod,
+
+    // ✅ ADD THESE (THIS FIXES YOUR ERROR)
+    subtotal: Number(subtotal),
+    shippingPrice: Number(shippingFee),
+    discount: Number(discount),
+    totalPrice: Number(total),
+
+    couponCode: couponApplied ? coupon : '',
+  },
+  guestId
+)
 
     // ✅ Persist guestId returned from backend
     if (data.guestId) localStorage.setItem('guestId', data.guestId)
