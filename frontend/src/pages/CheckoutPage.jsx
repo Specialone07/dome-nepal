@@ -82,12 +82,10 @@ const handlePlaceOrder = async () => {
     window.scrollTo({ top: 0, behavior: 'smooth' })
 
     // ✅ Guests go to order tracking page, users go to account orders
-    const orderId = data.data.order._id
-    const redirectPath = isAuthenticated
-      ? `/account/orders/${orderId}`
-      : `/orders/${orderId}?guestId=${data.guestId || guestId}`
+      setTimeout(() => {
+      navigate('/')
+    }, 3000)
 
-    setTimeout(() => navigate(redirectPath), 3000)
   } catch (err) {
     toast.error(err?.response?.data?.message || 'Failed to place order')
   } finally {
