@@ -63,6 +63,7 @@ const handlePlaceOrder = async () => {
           phone: shipping.phone,
         },
         paymentMethod,
+         subtotal: subtotal,
         couponCode: couponApplied ? coupon : '',
       },
       guestId  // ✅ pass guestId so api.js can attach it as header
