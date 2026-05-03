@@ -31,10 +31,17 @@ const productSchema = new mongoose.Schema({
     alt: { type: String, default: '' }
   }],
 
-  variants: {
-    type: [variantSchema],
-    default: []
-  },
+ variants: [
+  {
+    color: "Brown",
+    colorHex: "#6B4226",
+    images: [],
+    sizes: [
+      { size: "S", stock: 5 },
+      { size: "M", stock: 10 }
+    ]
+  }
+],
 
   tags: [{ type: String, lowercase: true }],
   material: { type: String, default: '' },

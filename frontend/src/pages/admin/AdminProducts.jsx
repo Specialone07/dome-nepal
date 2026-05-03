@@ -17,6 +17,8 @@ const COLOR_PRESETS = {
   Beige:   '#d4b896', Cream:  '#fffdd0', Khaki:   '#c3b091',
 }
 
+const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
+
 function ColorDot({ color, size = 16 }) {
   const hex = COLOR_PRESETS[color] || color || '#ccc'
   const isDark = hex === '#1a1a1a' || hex === '#1b2a4a'
@@ -30,7 +32,7 @@ function ColorDot({ color, size = 16 }) {
         background: hex,
         border: isDark ? 'none' : '1.5px solid rgba(0,0,0,0.12)',
         flexShrink: 0,
-        verticalAlign: 'middle'
+        verticalAlign: 'middle',
       }}
     />
   )
@@ -116,15 +118,11 @@ function CropModal({ src, filename, onDone, onSkip }) {
 function DropzoneArea({ images, setImages, variantColors }) {
   const inputRef = useRef(null)
   const [isDragging, setIsDragging] = useState(false)
-  const [cropQueue, setCropQueue] = useState([]) // [{src, filename, rawFile}]
+  const [cropQueue, setCropQueue] = useState([])
   const [cropping, setCropping] = useState(null)
 
   const processFiles = (files) => {
-    const newQueue = files.map(f => ({
-      src: URL.createObjectURL(f),
-      filename: f.name,
-      rawFile: f
-    }))
+    const newQueue = files.map(f => ({ src: URL.createObjectURL(f), filename: f.name, rawFile: f }))
     setCropQueue(prev => [...prev, ...newQueue])
     if (!cropping) {
       const first = newQueue[0]
@@ -134,8 +132,7 @@ function DropzoneArea({ images, setImages, variantColors }) {
   }
 
   const handleDrop = (e) => {
-    e.preventDefault()
-    setIsDragging(false)
+    e.preventDefault(); setIsDragging(false)
     const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'))
     if (files.length) processFiles(files)
   }
@@ -174,22 +171,17 @@ function DropzoneArea({ images, setImages, variantColors }) {
   }
 
   const removeImage = (id) => setImages(prev => prev.filter(img => img.id !== id))
-
-  const updateImageColor = (id, color) =>
-    setImages(prev => prev.map(img => img.id === id ? { ...img, color } : img))
+  const updateImageColor = (id, color) => setImages(prev => prev.map(img => img.id === id ? { ...img, color } : img))
 
   return (
     <>
-      {/* Drop Zone */}
       <div
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
         onClick={() => inputRef.current?.click()}
         className={`relative border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all duration-200 ${
-          isDragging
-            ? 'border-stone-900 bg-stone-50 scale-[1.01]'
-            : 'border-stone-200 hover:border-stone-400 hover:bg-stone-50/50'
+          isDragging ? 'border-stone-900 bg-stone-50 scale-[1.01]' : 'border-stone-200 hover:border-stone-400 hover:bg-stone-50/50'
         }`}
       >
         <input ref={inputRef} type="file" multiple accept="image/*" onChange={handleFileInput} className="hidden" />
@@ -200,26 +192,20 @@ function DropzoneArea({ images, setImages, variantColors }) {
         <p className="text-[10px] text-stone-400 mt-1">PNG, JPG, WEBP — Each image will be cropped</p>
       </div>
 
-      {/* Preview Grid (Reorderable) */}
       <AnimatePresence>
         {images.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
             <p className="text-[10px] text-stone-400 font-mono mb-2 flex items-center gap-1">
               <GripVertical size={10} /> DRAG TO REORDER · {images.length} image{images.length !== 1 ? 's' : ''}
             </p>
-            <Reorder.Group axis="x" values={images} onReorder={setImages}
-              className="flex gap-2 flex-wrap"
-            >
+            <Reorder.Group axis="x" values={images} onReorder={setImages} className="flex gap-2 flex-wrap">
               {images.map((img, idx) => (
                 <Reorder.Item key={img.id} value={img} className="relative group cursor-grab active:cursor-grabbing">
                   <div className="w-20 h-24 rounded-lg overflow-hidden border-2 border-stone-100 bg-stone-50 relative shadow-sm hover:shadow-md transition-shadow">
                     {idx === 0 && (
-                      <span className="absolute top-1 left-1 z-10 bg-stone-900 text-white text-[8px] font-mono px-1 rounded">
-                        COVER
-                      </span>
+                      <span className="absolute top-1 left-1 z-10 bg-stone-900 text-white text-[8px] font-mono px-1 rounded">COVER</span>
                     )}
                     <img src={img.preview} alt="" className="w-full h-full object-cover" />
-                    {/* Color tag */}
                     <div className="absolute bottom-0 inset-x-0 bg-white/90 backdrop-blur-sm px-1 py-0.5 flex items-center gap-1">
                       <ColorDot color={img.color} size={8} />
                       <input
@@ -230,7 +216,6 @@ function DropzoneArea({ images, setImages, variantColors }) {
                         onClick={e => e.stopPropagation()}
                       />
                     </div>
-                    {/* Remove */}
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); removeImage(img.id) }}
@@ -246,15 +231,9 @@ function DropzoneArea({ images, setImages, variantColors }) {
         )}
       </AnimatePresence>
 
-      {/* Crop Modal */}
       <AnimatePresence>
         {cropping && (
-          <CropModal
-            src={cropping.src}
-            filename={cropping.filename}
-            onDone={finalizeCrop}
-            onSkip={skipCrop}
-          />
+          <CropModal src={cropping.src} filename={cropping.filename} onDone={finalizeCrop} onSkip={skipCrop} />
         )}
       </AnimatePresence>
     </>
@@ -287,13 +266,241 @@ function VariantImageSelect({ images, value, onChange }) {
   )
 }
 
+// ─── Color-Grouped Variant Builder ─────────────────────────────────────────────
+//
+// Internal shape:  [{ id, color, imageId, sizes: { XS: '', S: '5', M: '10', L: '', XL: '', XXL: '' } }]
+// On submit, flatten → [{ size, color, stock, imageId, sku }]
+
+function buildEmptySizes() {
+  return SIZES.reduce((acc, s) => ({ ...acc, [s]: '' }), {})
+}
+
+function VariantBuilder({ colorGroups, setColorGroups, images }) {
+  const addColorGroup = () => {
+    setColorGroups(prev => [
+      ...prev,
+      { id: Date.now(), color: '', imageId: '', sizes: buildEmptySizes() },
+    ])
+  }
+
+  const removeColorGroup = (id) =>
+    setColorGroups(prev => prev.filter(g => g.id !== id))
+
+  const updateGroup = (id, field, value) =>
+    setColorGroups(prev => prev.map(g => g.id === id ? { ...g, [field]: value } : g))
+
+  const updateSize = (id, size, stock) =>
+    setColorGroups(prev =>
+      prev.map(g => g.id === id ? { ...g, sizes: { ...g.sizes, [size]: stock } } : g)
+    )
+
+  const toggleSize = (id, size) =>
+    setColorGroups(prev =>
+      prev.map(g => {
+        if (g.id !== id) return g
+        const current = g.sizes[size]
+        // If currently empty string (disabled), enable with '0'; if has value, clear it
+        const next = current === '' ? '0' : ''
+        return { ...g, sizes: { ...g.sizes, [size]: next } }
+      })
+    )
+
+  const totalStock = colorGroups.reduce((sum, g) =>
+    sum + Object.values(g.sizes).reduce((s, v) => s + (v !== '' ? Number(v) : 0), 0), 0)
+
+  return (
+    <section>
+      <div className="flex justify-between items-center mb-3">
+        <label className="text-[10px] font-mono text-stone-400 tracking-widest uppercase">
+          Variants
+          <span className="ml-2 bg-stone-100 text-stone-500 rounded-full px-2 py-0.5 text-[9px]">
+            {colorGroups.length} color{colorGroups.length !== 1 ? 's' : ''}
+          </span>
+        </label>
+        <button
+          type="button"
+          onClick={addColorGroup}
+          className="text-[10px] border border-stone-200 hover:border-stone-800 text-stone-500 hover:text-stone-800 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+        >
+          <Plus size={10} /> Add Color
+        </button>
+      </div>
+
+      <div className="space-y-3">
+        <AnimatePresence>
+          {colorGroups.map((group) => {
+            const enabledSizes = SIZES.filter(s => group.sizes[s] !== '')
+            return (
+              <motion.div
+                key={group.id}
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="border border-stone-200 rounded-xl overflow-hidden bg-white"
+              >
+                {/* ── Color header row ── */}
+                <div className="flex items-center gap-3 px-4 py-3 bg-stone-50 border-b border-stone-100">
+                  {/* Color swatch + input */}
+                  <div className="flex items-center gap-2 flex-1">
+                    <ColorDot color={group.color} size={14} />
+                    <input
+                      list={`cg-colors-${group.id}`}
+                      placeholder="Color name (e.g. Brown)"
+                      value={group.color}
+                      onChange={e => updateGroup(group.id, 'color', e.target.value)}
+                      className="flex-1 border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs bg-white outline-none focus:border-stone-800 transition-colors min-w-0"
+                    />
+                    <datalist id={`cg-colors-${group.id}`}>
+                      {Object.keys(COLOR_PRESETS).map(c => <option key={c} value={c} />)}
+                    </datalist>
+                  </div>
+
+                  {/* Quick color swatches */}
+                  <div className="flex gap-1">
+                    {Object.entries(COLOR_PRESETS).slice(0, 10).map(([name, hex]) => (
+                      <button
+                        key={name} type="button"
+                        onClick={() => updateGroup(group.id, 'color', name)}
+                        title={name}
+                        style={{
+                          background: hex,
+                          border: group.color === name ? '2px solid #1a1a1a' : '1.5px solid rgba(0,0,0,0.1)',
+                        }}
+                        className="w-4 h-4 rounded-full transition-transform hover:scale-110 flex-shrink-0"
+                      />
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => removeColorGroup(group.id)}
+                    className="w-6 h-6 rounded-full flex items-center justify-center text-stone-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+
+                {/* ── Size grid ── */}
+                <div className="px-4 py-3 space-y-3">
+                  {/* Size toggles */}
+                  <div>
+                    <p className="text-[9px] font-mono text-stone-400 uppercase tracking-wider mb-2">
+                      Select sizes — click to enable, then set stock
+                    </p>
+                    <div className="flex gap-2 flex-wrap">
+                      {SIZES.map(size => {
+                        const active = group.sizes[size] !== ''
+                        return (
+                          <button
+                            key={size}
+                            type="button"
+                            onClick={() => toggleSize(group.id, size)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-mono border transition-all ${
+                              active
+                                ? 'bg-stone-900 text-white border-stone-900'
+                                : 'border-stone-200 text-stone-400 hover:border-stone-400 hover:text-stone-600'
+                            }`}
+                          >
+                            {size}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Stock inputs for enabled sizes */}
+                  {enabledSizes.length > 0 && (
+                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                      {enabledSizes.map(size => (
+                        <div key={size} className="space-y-1">
+                          <p className="text-[9px] font-mono text-stone-500 uppercase text-center">{size}</p>
+                          <input
+                            type="number"
+                            min={0}
+                            value={group.sizes[size]}
+                            onChange={e => updateSize(group.id, size, e.target.value)}
+                            placeholder="0"
+                            className="w-full border border-stone-200 rounded-lg px-2 py-1.5 text-xs text-center bg-white outline-none focus:border-stone-800 transition-colors"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {enabledSizes.length === 0 && (
+                    <p className="text-[10px] text-stone-300 italic">No sizes selected — click a size above to enable it</p>
+                  )}
+
+                  {/* Variant image */}
+                  {images.length > 0 && (
+                    <div>
+                      <p className="text-[9px] font-mono text-stone-400 uppercase tracking-wider mb-1">Linked image</p>
+                      <VariantImageSelect
+                        images={images}
+                        value={group.imageId}
+                        onChange={val => updateGroup(group.id, 'imageId', val)}
+                      />
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )
+          })}
+        </AnimatePresence>
+      </div>
+
+      {colorGroups.length > 0 && (
+        <div className="mt-3 flex items-center gap-2">
+          <div className="h-px flex-1 bg-stone-100" />
+          <p className="text-[10px] text-stone-400 font-mono">
+            Total Stock: <span className="font-semibold text-stone-700">{totalStock}</span>
+            {' · '}
+            {colorGroups.reduce((sum, g) => sum + SIZES.filter(s => g.sizes[s] !== '').length, 0)} variant{colorGroups.reduce((sum, g) => sum + SIZES.filter(s => g.sizes[s] !== '').length, 0) !== 1 ? 's' : ''}
+          </p>
+          <div className="h-px flex-1 bg-stone-100" />
+        </div>
+      )}
+    </section>
+  )
+}
+
+// ─── Flatten color groups → flat variant array ──────────────────────────────────
+function flattenColorGroups(colorGroups) {
+  const flat = []
+  for (const group of colorGroups) {
+    for (const size of SIZES) {
+      if (group.sizes[size] === '') continue // not selected
+      flat.push({
+        size,
+        color: group.color,
+        stock: Number(group.sizes[size] || 0),
+        imageId: group.imageId || '',
+        sku: `SKU-${size}-${group.color}-${Date.now()}`,
+      })
+    }
+  }
+  return flat
+}
+
+// ─── Inflate flat variants → color groups (for edit mode) ──────────────────────
+function inflateToColorGroups(variants) {
+  const map = new Map()
+  for (const v of variants) {
+    if (!map.has(v.color)) {
+      map.set(v.color, { id: Date.now() + Math.random(), color: v.color, imageId: v.imageId || '', sizes: buildEmptySizes() })
+    }
+    map.get(v.color).sizes[v.size] = String(v.stock)
+  }
+  return Array.from(map.values())
+}
+
 // ─── Bulk Upload Modal ──────────────────────────────────────────────────────────
 function BulkUploadModal({ onClose, onImport }) {
   const [rows, setRows] = useState([
-    { name: '', price: '', category: 'tops', color: 'Black', size: 'M', stock: '10' }
+    { name: '', price: '', category: 'tops', color: 'Black', size: 'M', stock: '10' },
   ])
   const [csvText, setCsvText] = useState('')
-  const [tab, setTab] = useState('manual') // 'manual' | 'csv'
+  const [tab, setTab] = useState('manual')
 
   const parseCsv = () => {
     try {
@@ -347,8 +554,8 @@ function BulkUploadModal({ onClose, onImport }) {
           {tab === 'csv' ? (
             <div className="space-y-3">
               <div className="bg-stone-50 border border-stone-100 rounded-lg p-3 text-[10px] font-mono text-stone-400">
-                name,price,category,color,size,stock<br/>
-                "Classic Tee",29.99,tops,Black,M,50<br/>
+                name,price,category,color,size,stock<br />
+                "Classic Tee",29.99,tops,Black,M,50<br />
                 "Slim Jogger",49.99,bottoms,Navy,L,25
               </div>
               <textarea
@@ -363,7 +570,7 @@ function BulkUploadModal({ onClose, onImport }) {
           ) : (
             <div className="space-y-2">
               <div className="grid grid-cols-6 gap-2 text-[9px] font-mono text-stone-400 uppercase tracking-wider px-1">
-                {['Name','Price','Category','Color','Size','Stock'].map(h => <div key={h}>{h}</div>)}
+                {['Name', 'Price', 'Category', 'Color', 'Size', 'Stock'].map(h => <div key={h}>{h}</div>)}
               </div>
               {rows.map((row, i) => (
                 <div key={i} className="grid grid-cols-6 gap-2 items-center">
@@ -371,12 +578,12 @@ function BulkUploadModal({ onClose, onImport }) {
                     field === 'category' ? (
                       <select key={field} value={row[field] || 'tops'} onChange={e => updateRow(i, field, e.target.value)}
                         className="border border-stone-200 rounded px-2 py-1.5 text-xs outline-none focus:border-stone-400">
-                        {['tops','bottoms','outerwear','dresses','accessories','footwear','activewear'].map(c => <option key={c}>{c}</option>)}
+                        {['tops', 'bottoms', 'outerwear', 'dresses', 'accessories', 'footwear', 'activewear'].map(c => <option key={c}>{c}</option>)}
                       </select>
                     ) : (
                       <input key={field} value={row[field] || ''} onChange={e => updateRow(i, field, e.target.value)}
                         className="border border-stone-200 rounded px-2 py-1.5 text-xs outline-none focus:border-stone-400"
-                        type={['price','stock'].includes(field) ? 'number' : 'text'}
+                        type={['price', 'stock'].includes(field) ? 'number' : 'text'}
                       />
                     )
                   ))}
@@ -405,25 +612,24 @@ function BulkUploadModal({ onClose, onImport }) {
 function ProductFormModal({ product, onClose }) {
   const qc = useQueryClient()
   const isEdit = !!product
-  const SIZES = ['XS','S','M','L','XL','XXL']
 
   const [form, setForm] = useState(product || {
     name: '', description: '', price: '', comparePrice: '',
-    category: 'tops', gender: 'unisex', material: '', isFeatured: false, isNew: true
+    category: 'tops', gender: 'unisex', material: '', isFeatured: false, isNew: true,
   })
 
-  // Rich images: [{file, preview, color, id, variantImageFor}]
   const [images, setImages] = useState(
     product?.images?.map((img, i) => ({
-      file: null, preview: img.url, color: '', id: i, isExisting: true
+      file: null, preview: img.url, color: '', id: i, isExisting: true,
     })) || []
   )
 
-  const [variants, setVariants] = useState(
-    product?.variants || [{ size: 'M', color: 'Black', stock: 10, imageId: '' }]
+  // Color-grouped variant state
+  const [colorGroups, setColorGroups] = useState(
+    product?.variants?.length
+      ? inflateToColorGroups(product.variants)
+      : [{ id: Date.now(), color: '', imageId: '', sizes: buildEmptySizes() }]
   )
-
-  const variantColors = [...new Set(variants.map(v => v.color).filter(Boolean))]
 
   const mutation = useMutation({
     mutationFn: (formData) =>
@@ -433,69 +639,51 @@ function ProductFormModal({ product, onClose }) {
       toast.success(isEdit ? 'Updated!' : 'Created!')
       onClose()
     },
-    onError: err => toast.error(err?.response?.data?.message || 'Failed')
+    onError: err => toast.error(err?.response?.data?.message || 'Failed'),
   })
 
- const handleSubmit = (e) => {
-  e.preventDefault()
+  const handleSubmit = (e) => {
+    e.preventDefault()
 
-  const seen = new Set()
+    // Validate color groups
+    for (const group of colorGroups) {
+      if (!group.color.trim()) {
+        toast.error('Every color group needs a color name')
+        return
+      }
+      const enabledSizes = SIZES.filter(s => group.sizes[s] !== '')
+      if (enabledSizes.length === 0) {
+        toast.error(`Color "${group.color}" has no sizes selected`)
+        return
+      }
+      for (const size of enabledSizes) {
+        if (Number(group.sizes[size]) < 0) {
+          toast.error(`Stock for ${group.color} / ${size} cannot be negative`)
+          return
+        }
+      }
+    }
 
-  for (let v of variants) {
-    if (!v.size || !v.color) {
-      toast.error('Fill all variant fields')
+    // Check duplicate colors
+    const colors = colorGroups.map(g => g.color.trim().toLowerCase())
+    const uniqueColors = new Set(colors)
+    if (uniqueColors.size !== colors.length) {
+      toast.error('Duplicate colors found — each color must be unique')
       return
     }
 
-    if (v.stock < 0) {
-      toast.error('Stock cannot be negative')
-      return
-    }
+    const flatVariants = flattenColorGroups(colorGroups)
 
-    const key = `${v.size}-${v.color}`
-    if (seen.has(key)) {
-      toast.error(`Duplicate variant: ${key}`)
-      return
-    }
-    seen.add(key)
+    const formData = new FormData()
+    Object.entries(form).forEach(([k, v]) => {
+      if (typeof v === 'object') return
+      formData.append(k, v)
+    })
+    formData.append('variants', JSON.stringify(flatVariants))
+    images.forEach(img => { if (img.file) formData.append('images', img.file) })
+
+    mutation.mutate(formData)
   }
-
-  const formData = new FormData()
-
-  // basic fields (avoid objects)
-  Object.entries(form).forEach(([k, v]) => {
-    if (typeof v === 'object') return
-    formData.append(k, v)
-  })
-
-  // variants → ALWAYS JSON string
-  formData.append(
-    'variants',
-    JSON.stringify(
-      variants.map(v => ({
-        size: v.size,
-        color: v.color,
-        colorHex: v.colorHex || '#000000',
-        stock: Number(v.stock || 0),
-        sku: v.sku || `SKU-${v.size}-${v.color}-${Date.now()}`,
-        imageId: v.imageId || ''
-      }))
-    )
-  )
-
-  // images
-  images.forEach(img => {
-    if (img.file) formData.append('images', img.file)
-  })
-
-  // 🔥 THIS WAS MISSING (CRITICAL)
-  mutation.mutate(formData)
-}
-
-  const totalStock = variants.reduce((sum, v) => sum + Number(v.stock || 0), 0)
-
-  const updateVariant = (index, field, value) =>
-    setVariants(prev => prev.map((v, i) => i === index ? { ...v, [field]: value } : v))
 
   return (
     <motion.div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
@@ -524,7 +712,11 @@ function ProductFormModal({ product, onClose }) {
           {/* ── Images ── */}
           <section>
             <label className="block text-[10px] font-mono text-stone-400 tracking-widest uppercase mb-2">Images</label>
-            <DropzoneArea images={images} setImages={setImages} variantColors={variantColors} />
+            <DropzoneArea
+              images={images}
+              setImages={setImages}
+              variantColors={colorGroups.map(g => g.color).filter(Boolean)}
+            />
           </section>
 
           {/* ── Basic Info ── */}
@@ -545,152 +737,36 @@ function ProductFormModal({ product, onClose }) {
               required
             />
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <input
-                  type="number" placeholder="Price *"
-                  value={form.price}
-                  onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
-                  className="w-full border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-stone-800 transition-colors"
-                />
-              </div>
-              <div>
-                <input
-                  type="number" placeholder="Compare Price"
-                  value={form.comparePrice}
-                  onChange={e => setForm(f => ({ ...f, comparePrice: e.target.value }))}
-                  className="w-full border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-stone-800 transition-colors"
-                />
-              </div>
+              <input
+                type="number" placeholder="Price *"
+                value={form.price}
+                onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
+                className="w-full border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-stone-800 transition-colors"
+              />
+              <input
+                type="number" placeholder="Compare Price"
+                value={form.comparePrice}
+                onChange={e => setForm(f => ({ ...f, comparePrice: e.target.value }))}
+                className="w-full border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-stone-800 transition-colors"
+              />
             </div>
             <select
               value={form.category}
               onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
               className="w-full border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-stone-800 transition-colors bg-white"
             >
-              {['tops','bottoms','outerwear','dresses','accessories','footwear','activewear'].map(c => (
+              {['tops', 'bottoms', 'outerwear', 'dresses', 'accessories', 'footwear', 'activewear'].map(c => (
                 <option key={c} value={c} className="capitalize">{c.charAt(0).toUpperCase() + c.slice(1)}</option>
               ))}
             </select>
           </section>
 
           {/* ── Variants ── */}
-          <section>
-            <div className="flex justify-between items-center mb-2">
-              <label className="text-[10px] font-mono text-stone-400 tracking-widest uppercase">
-                Variants
-                <span className="ml-2 bg-stone-100 text-stone-500 rounded-full px-2 py-0.5 text-[9px]">
-                  {variants.length}
-                </span>
-              </label>
-              <button
-                type="button"
-                onClick={() => setVariants([...variants, { size: 'M', color: 'Black', stock: 0, imageId: '' }])}
-                className="text-[10px] border border-stone-200 hover:border-stone-800 text-stone-500 hover:text-stone-800 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
-              >
-                <Plus size={10} /> Variant
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              <AnimatePresence>
-                {variants.map((v, i) => (
-                  <motion.div key={i}
-                    initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="border border-stone-100 rounded-xl p-3 bg-stone-50/50"
-                  >
-                    <div className="grid grid-cols-12 gap-2 items-start">
-
-                      {/* SIZE */}
-                      <div className="col-span-2">
-                        <p className="text-[8px] font-mono text-stone-400 mb-1 uppercase">Size</p>
-                        <select
-                          value={v.size}
-                          onChange={(e) => updateVariant(i, 'size', e.target.value)}
-                          className="w-full border border-stone-200 rounded-lg px-2 py-1.5 text-xs bg-white outline-none focus:border-stone-800 transition-colors"
-                        >
-                          {SIZES.map(s => <option key={s}>{s}</option>)}
-                        </select>
-                      </div>
-
-                      {/* COLOR */}
-                      <div className="col-span-4">
-                        <p className="text-[8px] font-mono text-stone-400 mb-1 uppercase">Color</p>
-                        <div className="relative flex items-center">
-                          <ColorDot color={v.color} size={12} />
-                          <input
-                            list={`colors-${i}`}
-                            placeholder="Black"
-                            value={v.color}
-                            onChange={(e) => updateVariant(i, 'color', e.target.value)}
-                            className="flex-1 border border-stone-200 rounded-lg pl-5 pr-2 py-1.5 text-xs bg-white outline-none focus:border-stone-800 transition-colors ml-1"
-                          />
-                          <datalist id={`colors-${i}`}>
-                            {Object.keys(COLOR_PRESETS).map(c => <option key={c} value={c} />)}
-                          </datalist>
-                        </div>
-                        {/* Color swatch row */}
-                        <div className="flex gap-1 mt-1.5 flex-wrap">
-                          {Object.entries(COLOR_PRESETS).slice(0, 8).map(([name, hex]) => (
-                            <button
-                              key={name} type="button"
-                              onClick={() => updateVariant(i, 'color', name)}
-                              title={name}
-                              style={{ background: hex, border: v.color === name ? '2px solid #1a1a1a' : '1.5px solid rgba(0,0,0,0.1)' }}
-                              className="w-4 h-4 rounded-full transition-transform hover:scale-110"
-                            />
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* STOCK */}
-                      <div className="col-span-2">
-                        <p className="text-[8px] font-mono text-stone-400 mb-1 uppercase">Stock</p>
-                        <input
-                          type="number" value={v.stock} min={0}
-                          onChange={(e) => updateVariant(i, 'stock', e.target.value)}
-                          className="w-full border border-stone-200 rounded-lg px-2 py-1.5 text-xs bg-white outline-none focus:border-stone-800 transition-colors"
-                        />
-                      </div>
-
-                      {/* VARIANT IMAGE */}
-                      <div className="col-span-3">
-                        <p className="text-[8px] font-mono text-stone-400 mb-1 uppercase">Image</p>
-                        {images.length > 0 ? (
-                          <VariantImageSelect
-                            images={images}
-                            value={v.imageId}
-                            onChange={val => updateVariant(i, 'imageId', val)}
-                          />
-                        ) : (
-                          <p className="text-[9px] text-stone-300 mt-1 italic">Add images first</p>
-                        )}
-                      </div>
-
-                      {/* REMOVE */}
-                      <div className="col-span-1 flex items-end justify-end pb-1">
-                        <button
-                          type="button"
-                          onClick={() => setVariants(variants.filter((_, idx) => idx !== i))}
-                          className="w-6 h-6 rounded-full flex items-center justify-center text-stone-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-                        >
-                          <X size={11} />
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
-
-            <div className="mt-2 flex items-center gap-2">
-              <div className="h-px flex-1 bg-stone-100" />
-              <p className="text-[10px] text-stone-400 font-mono">
-                Total Stock: <span className="font-semibold text-stone-700">{totalStock}</span>
-              </p>
-              <div className="h-px flex-1 bg-stone-100" />
-            </div>
-          </section>
+          <VariantBuilder
+            colorGroups={colorGroups}
+            setColorGroups={setColorGroups}
+            images={images}
+          />
 
           {/* ── Flags ── */}
           <section className="flex gap-6">
@@ -740,17 +816,16 @@ export default function AdminProducts() {
     queryKey: ['admin-products', page, search],
     queryFn: () =>
       productAPI.getAll({ page, limit: 15, search: search || undefined, isActive: undefined })
-        .then(r => r.data.data)
+        .then(r => r.data.data),
   })
 
   const deleteMutation = useMutation({
     mutationFn: productAPI.delete,
-    onSuccess: () => { qc.invalidateQueries(['admin-products']); toast.success('Product removed') }
+    onSuccess: () => { qc.invalidateQueries(['admin-products']); toast.success('Product removed') },
   })
 
   const handleBulkImport = (rows) => {
     toast.success(`Queued ${rows.length} products for import`)
-    // In real app: iterate and call productAPI.create for each row
     console.log('Bulk import rows:', rows)
   }
 
@@ -788,7 +863,7 @@ export default function AdminProducts() {
           <table className="w-full">
             <thead className="border-b border-stone-100">
               <tr>
-                {['Product','Category','Price','Stock','Colors','Status','Actions'].map(h => (
+                {['Product', 'Category', 'Price', 'Stock', 'Colors', 'Status', 'Actions'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-[10px] tracking-[0.2em] uppercase text-stone-400 font-mono whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -817,7 +892,6 @@ export default function AdminProducts() {
                           {p.totalStock ?? '—'}
                         </span>
                       </td>
-                      {/* Color swatches column */}
                       <td className="px-4 py-3">
                         <div className="flex gap-1 flex-wrap">
                           {[...new Set((p.variants || []).map(v => v.color))].slice(0, 5).map(color => (
@@ -837,7 +911,7 @@ export default function AdminProducts() {
                           <button onClick={() => setModal(p)} className="p-1.5 hover:bg-stone-100 rounded transition-colors text-stone-400 hover:text-obsidian-900">
                             <Edit size={13} />
                           </button>
-                          <button onClick={() => { if(confirm('Delete this product?')) deleteMutation.mutate(p._id) }}
+                          <button onClick={() => { if (confirm('Delete this product?')) deleteMutation.mutate(p._id) }}
                             className="p-1.5 hover:bg-red-50 rounded transition-colors text-stone-400 hover:text-red-500">
                             <Trash2 size={13} />
                           </button>

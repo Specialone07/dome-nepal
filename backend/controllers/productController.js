@@ -55,7 +55,7 @@ const getProducts = asyncHandler(async (req, res) => {
 
   // Variants
   if (sizes) {
-    filter['variants.size'] = {
+    filter['variants.sizes.size'] = {
       $in: sizes.split(',').filter(Boolean)
     };
   }
@@ -226,10 +226,10 @@ const searchProducts = asyncHandler(async (req, res) => {
 ========================================================= */
 const createProduct = asyncHandler(async (req, res) => {
   try {
-    const data = { ...req.body }
+    const data = { ...req.body };
 
-    console.log("BODY:", data)
-    console.log("FILES:", req.files)
+    console.log("BODY:", data);
+    console.log("FILES:", req.files);
 
     // =========================
     // 1. REQUIRED FIELD CHECK
@@ -238,81 +238,115 @@ const createProduct = asyncHandler(async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Name, description, and category are required"
-      })
+      });
     }
 
     if (!data.price || isNaN(Number(data.price))) {
       return res.status(400).json({
         success: false,
         message: "Invalid or missing price"
-      })
+      });
     }
 
     // =========================
-    // 2. SAFE TYPE CONVERSION
+    // 2. TYPE CONVERSION
     // =========================
-    data.price = Number(data.price)
-    data.comparePrice = data.comparePrice ? Number(data.comparePrice) : 0
+    data.price = Number(data.price);
+    data.comparePrice = data.comparePrice ? Number(data.comparePrice) : 0;
 
-    data.isFeatured = data.isFeatured === 'true'
-    data.isNew = data.isNew === 'true'
+    data.isFeatured = data.isFeatured === 'true';
+    data.isNew = data.isNew === 'true';
+    data.isBestSeller = data.isBestSeller === 'true';
 
     // =========================
-    // 3. SAFE VARIANTS PARSE
+    // 3. VARIANTS PARSE (NEW STRUCTURE)
     // =========================
-    if (typeof data.variants === 'string') {
+    let variants = [];
+
+    if (data.variants) {
       try {
-        data.variants = JSON.parse(data.variants)
+        variants =
+          typeof data.variants === 'string'
+            ? JSON.parse(data.variants)
+            : data.variants;
+
+        if (!Array.isArray(variants)) variants = [];
       } catch (err) {
-        data.variants = []
+        console.log("Variant parse error:", err.message);
+        variants = [];
       }
     }
 
     // =========================
-    // 4. IMAGE HANDLING (CLOUDINARY SAFE)
+    // 4. VALIDATE VARIANTS
+    // =========================
+    variants = variants.map(v => {
+      const safeSizes = Array.isArray(v.sizes)
+        ? v.sizes
+            .filter(s => s.size && s.size.trim() !== '')
+            .map(s => ({
+              size: s.size.trim(),
+              stock: Number(s.stock || 0)
+            }))
+        : [];
+
+      return {
+        color: v.color?.trim() || "Unknown",
+        colorHex: v.colorHex || "#000000",
+        images: v.images || [],
+        sizes: safeSizes
+      };
+    }).filter(v => v.sizes.length > 0);
+
+    // =========================
+    // 5. DEFAULT VARIANT
+    // =========================
+    if (variants.length === 0) {
+      variants = [
+        {
+          color: "Black",
+          colorHex: "#000000",
+          images: [],
+          sizes: [
+            { size: "M", stock: 10 }
+          ]
+        }
+      ];
+    }
+
+    data.variants = variants;
+
+    // =========================
+    // 6. IMAGE HANDLING
     // =========================
     if (req.files && req.files.length > 0) {
       data.images = req.files.map(file => ({
         url: file.path || file.secure_url || '',
         publicId: file.filename || file.public_id || ''
-      }))
+      }));
     } else {
-      data.images = []
+      data.images = [];
     }
 
     // =========================
-    // 5. DEFAULT VARIANT (SAFE)
+    // 7. CREATE PRODUCT
     // =========================
-    if (!Array.isArray(data.variants) || data.variants.length === 0) {
-      data.variants = [
-        {
-          size: "M",
-          color: "Black",
-          stock: 10,
-          sku: `SKU-${Date.now()}`
-        }
-      ]
-    }
-
-    // =========================
-    // 6. CREATE PRODUCT
-    // =========================
-    const product = await Product.create(data)
+    const product = await Product.create(data);
 
     return res.status(201).json({
       success: true,
       data: { product }
-    })
+    });
 
   } catch (error) {
-    console.error("🔥 PRODUCT CREATE ERROR:", error)
+    console.error("🔥 PRODUCT CREATE ERROR:", error);
 
     return res.status(500).json({
       success: false,
       message: error.message
-    })
+    });
   }
-})
+});
 /* =========================================================
    UPDATE PRODUCT
 ========================================================= */
@@ -327,59 +361,60 @@ const updateProduct = asyncHandler(async (req, res) => {
     console.log("UPDATE BODY:", data);
     console.log("FILES:", req.files);
 
-    // =====================
-    // TYPE CONVERSION
-    // =====================
+    // =========================
+    // 1. TYPE CONVERSION
+    // =========================
     if (data.price) data.price = Number(data.price);
 
     data.isFeatured = data.isFeatured === 'true';
     data.isNew = data.isNew === 'true';
     data.isBestSeller = data.isBestSeller === 'true';
 
-    // =====================
-    // VARIANTS SAFE PARSE
-    // =====================
-    // =====================
-// VARIANTS SAFE + VALIDATED
-// =====================
-let variants = [];
+    // =========================
+    // 2. VARIANTS PARSE
+    // =========================
+    let variants = [];
 
-if (data.variants) {
-  try {
-    variants =
-      typeof data.variants === 'string'
-        ? JSON.parse(data.variants)
-        : data.variants;
+    if (data.variants) {
+      try {
+        variants =
+          typeof data.variants === 'string'
+            ? JSON.parse(data.variants)
+            : data.variants;
 
-    if (!Array.isArray(variants)) {
-      variants = [];
+        if (!Array.isArray(variants)) variants = [];
+      } catch (err) {
+        console.log("Variant parse error:", err.message);
+        variants = [];
+      }
     }
-  } catch (err) {
-    console.log("Variant parse error:", err.message);
-    variants = [];
-  }
-}
 
-// 🔥 REMOVE INVALID VARIANTS
-variants = variants.filter(v =>
-  v &&
-  typeof v.size === 'string' &&
-  v.size.trim() !== '' &&
-  typeof v.color === 'string' &&
-  v.color.trim() !== ''
-);
+    // =========================
+    // 3. VALIDATE VARIANTS
+    // =========================
+    variants = variants.map(v => {
+      const safeSizes = Array.isArray(v.sizes)
+        ? v.sizes
+            .filter(s => s.size && s.size.trim() !== '')
+            .map(s => ({
+              size: s.size.trim(),
+              stock: Number(s.stock || 0)
+            }))
+        : [];
 
-// 🔥 FINAL SAFE MAPPING
-data.variants = variants.map(v => ({
-  size: v.size.trim(),
-  color: v.color.trim(),
-  colorHex: v.colorHex || '#000000',
-  stock: Number(v.stock || 0),
-  sku: v.sku || `SKU-${v.size}-${Date.now()}`
-}));
-    // =====================
-    // FIND PRODUCT
-    // =====================
+      return {
+        color: v.color?.trim() || "Unknown",
+        colorHex: v.colorHex || "#000000",
+        images: v.images || [],
+        sizes: safeSizes
+      };
+    }).filter(v => v.sizes.length > 0);
+
+    data.variants = variants;
+
+    // =========================
+    // 4. FIND PRODUCT
+    // =========================
     const existingProduct = await Product.findById(req.params.id);
 
     if (!existingProduct) {
@@ -389,14 +424,14 @@ data.variants = variants.map(v => ({
       });
     }
 
-    // =====================
-    // IMAGE UPDATE (SAFE)
-    // =====================
+    // =========================
+    // 5. IMAGE UPDATE
+    // =========================
     let updatedImages = existingProduct.images || [];
 
     if (req.files && req.files.length > 0) {
 
-      // delete old images from cloudinary
+      // delete old images
       for (const img of existingProduct.images) {
         if (img?.publicId && cloudinary?.uploader?.destroy) {
           try {
@@ -407,7 +442,6 @@ data.variants = variants.map(v => ({
         }
       }
 
-      // add new images
       updatedImages = req.files.map(file => ({
         url: file.path,
         publicId: file.filename,
@@ -417,9 +451,9 @@ data.variants = variants.map(v => ({
 
     data.images = updatedImages;
 
-    // =====================
-    // UPDATE PRODUCT
-    // =====================
+    // =========================
+    // 6. UPDATE PRODUCT
+    // =========================
     const product = await Product.findByIdAndUpdate(
       req.params.id,
       data,
