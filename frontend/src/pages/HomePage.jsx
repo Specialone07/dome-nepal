@@ -11,8 +11,8 @@ import PageTransition from '../components/common/PageTransition'
 
 const CATEGORIES = [
   { label: 'Tops', slug: 'tops', desc: 'Refined essentials', img: 'https://res.cloudinary.com/dddf2zjgt/image/upload/v1777818434/dome-nepal/cpkk2zu4o57x89ugxjsk.jpg' },
-  { label: 'Outerwear', slug: 'outerwear', desc: 'Statement pieces', img: 'https://res.cloudinary.com/dddf2zjgt/image/upload/v1777818600/dome-nepal/xecz5aeukyczla2fjpa9.jpg' },
-  { label: 'Bottoms', slug: 'bottoms', desc: 'Modern silhouettes', img: 'https://images.unsplash.com/photo-1704253800605-9d5becf3b0d0?q=80&w=687&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D' },
+  { label: 'Outerwear', slug: 'outerwear', desc: 'Statement pieces', img: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=600&q=80' },
+  { label: 'Bottoms', slug: 'bottoms', desc: 'Modern silhouettes', img: 'https://res.cloudinary.com/dddf2zjgt/image/upload/v1777565929/dome-nepal/zhpjoxvzqzg7i86xqeo2.jpg' },
   // { label: 'Accessories', slug: 'accessories', desc: 'Finishing touches', img: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=600&q=80' },
 ]
 
