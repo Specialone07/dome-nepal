@@ -199,34 +199,15 @@ export default function HomePage() {
       </section>
 
       {/* Brand Statement */}
-      <section className="relative py-32 overflow-hidden">
-        <div className="absolute inset-0">
-          <img
-            src="https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=1600&q=80"
-            alt="Brand"
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-obsidian-900/75" />
-        </div>
-        <ScrollReveal className="relative page-container text-center">
-          <p className="font-mono text-[10px] tracking-[0.5em] uppercase text-gold-400 mb-6">Our Philosophy</p>
-          <h2 className="font-display text-4xl md:text-6xl xl:text-7xl font-light text-cream-50 max-w-4xl mx-auto leading-tight mb-8">
-            "Craftsmanship is the<br />
-            <em className="italic text-gold-300">soul of every stitch</em>"
-          </h2>
-          <p className="font-body text-sm text-cream-50/60 max-w-2xl mx-auto mb-10 leading-relaxed">
-            Each Dome Nepal piece is a dialogue between ancient Himalayan textile traditions and modern fashion sensibility. We believe clothing should tell a story.
-          </p>
-          <Link to="/shop">
-            <motion.div
-              whileHover={{ scale: 1.03 }}
-              className="inline-flex items-center gap-3 border border-cream-50/30 text-cream-50 px-10 py-4 text-xs tracking-widest uppercase hover:bg-white/10 transition-colors"
-            >
-              Discover the Story <ArrowRight size={14} />
-            </motion.div>
-          </Link>
-        </ScrollReveal>
-      </section>
+     <section className="bg-cream-100 py-10">
+  <div className="page-container">
+    <img 
+      src="../../src/bg.jpg" 
+      alt="Summer Collection"
+      className="w-full h-[300px] object-cover rounded-xl shadow-md"
+    />
+  </div>
+</section>
 
       {/* New Arrivals */}
       <section className="page-container py-24">
