@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
-import { Heart, ShoppingBag, ChevronDown, ChevronLeft, ChevronRight, Share2, Check } from 'lucide-react'
-import { productAPI, reviewAPI, } from '../services/api'
+import { Heart, ShoppingBag, ChevronDown, ChevronLeft, ChevronRight, Share2, Check, Ruler } from 'lucide-react'
+import { productAPI, reviewAPI } from '../services/api'
 import { useCartStore, useWishlistStore, useAuthStore } from '../stores'
 import { formatPrice, getStars } from '../utils/helpers'
 import { ProductDetailSkeleton, ReviewSkeleton } from '../components/common/Skeletons'
@@ -13,6 +13,52 @@ import ScrollReveal, { ScrollRevealGroup, ScrollRevealItem } from '../components
 import PageTransition from '../components/common/PageTransition'
 import toast from 'react-hot-toast'
 
+// ─── Size Chart Table ───────────────────────────────────────────────────────────
+function SizeChartTable({ sizeChart }) {
+  if (!sizeChart?.rows?.length || !sizeChart?.measurements?.length) return null
+
+  return (
+    <div className="overflow-x-auto rounded-sm">
+      <table className="w-full text-xs border-collapse">
+        <thead>
+          <tr className="bg-stone-50">
+            <th className="px-4 py-2.5 text-left text-[9px] font-mono tracking-[0.18em] uppercase text-stone-400 border border-stone-100 w-14 sticky left-0 bg-stone-50">
+              Size
+            </th>
+            {sizeChart.measurements.map(m => (
+              <th key={m} className="px-4 py-2.5 text-left text-[9px] font-mono tracking-[0.18em] uppercase text-stone-400 border border-stone-100 min-w-[90px] whitespace-nowrap">
+                {m}
+                {sizeChart.unit && (
+                  <span className="ml-1 normal-case text-stone-300 font-normal tracking-normal">
+                    ({sizeChart.unit})
+                  </span>
+                )}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {sizeChart.rows.map((row, i) => (
+            <tr key={row.size} className={i % 2 === 0 ? 'bg-white' : 'bg-stone-50/40'}>
+              <td className="px-4 py-2.5 border border-stone-100 sticky left-0 bg-inherit">
+                <span className="font-mono text-[10px] font-semibold text-obsidian-900">
+                  {row.size}
+                </span>
+              </td>
+              {sizeChart.measurements.map(m => (
+                <td key={m} className="px-4 py-2.5 border border-stone-100 text-stone-500 font-mono text-[11px]">
+                  {row.values?.[m] || '—'}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// ─── Review Form ────────────────────────────────────────────────────────────────
 function ReviewForm({ productId, onSuccess }) {
   const [rating, setRating] = useState(0)
   const [title, setTitle] = useState('')
@@ -70,13 +116,19 @@ function ReviewForm({ productId, onSuccess }) {
   )
 }
 
+// ─── Page ───────────────────────────────────────────────────────────────────────
 export default function ProductDetailPage() {
   const { slug } = useParams()
+  const sizeChartRef = useRef(null)
+
   const [activeImg, setActiveImg] = useState(0)
   const [selectedSize, setSelectedSize] = useState('')
   const [selectedColor, setSelectedColor] = useState('')
   const [adding, setAdding] = useState(false)
   const [descOpen, setDescOpen] = useState(true)
+  const [materialOpen, setMaterialOpen] = useState(false)
+  const [sizeChartOpen, setSizeChartOpen] = useState(false)
+
   const { addItem } = useCartStore()
   const { has, toggle } = useWishlistStore()
   const { isAuthenticated } = useAuthStore()
@@ -101,7 +153,6 @@ export default function ProductDetailPage() {
     enabled: !!product?._id,
   })
 
-  // Unique sizes and colors
   const sizes = product ? [...new Set(product.variants.map(v => v.size))] : []
   const colors = product ? [...new Set(
     product.variants.filter(v => !selectedSize || v.size === selectedSize).map(v => v.color)
@@ -111,6 +162,16 @@ export default function ProductDetailPage() {
     (!selectedSize || v.size === selectedSize) && (!selectedColor || v.color === selectedColor)
   )
 
+  const hasSizeChart = !!(product?.sizeChart?.rows?.length)
+
+  // "Size Guide" button — open chart accordion and scroll into view
+  const handleOpenSizeChart = () => {
+    setSizeChartOpen(true)
+    setTimeout(() => {
+      sizeChartRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 80)
+  }
+
   const handleAddToCart = () => {
     if (!selectedSize) return toast.error('Please select a size')
     if (!selectedColor) return toast.error('Please select a color')
@@ -119,7 +180,7 @@ export default function ProductDetailPage() {
     setAdding(true)
     addItem(product, selectedSize, selectedColor)
     setTimeout(() => setAdding(false), 1200)
-    toast.success(`Added to your bag!`)
+    toast.success('Added to your bag!')
   }
 
   const handleWishlist = async () => {
@@ -132,24 +193,78 @@ export default function ProductDetailPage() {
   }
 
   if (isLoading) return <ProductDetailSkeleton />
-  if (!product) return <div className="page-container py-24 text-center"><p className="font-display text-3xl text-stone-300">Product not found</p></div>
+  if (!product) return (
+    <div className="page-container py-24 text-center">
+      <p className="font-display text-3xl text-stone-300">Product not found</p>
+    </div>
+  )
+
+  // Build accordion items dynamically — size chart only shown if product has one
+  const accordionItems = [
+    {
+      key: 'description',
+      title: 'Description',
+      open: descOpen,
+      setOpen: setDescOpen,
+      content: (
+        <p className="text-sm text-stone-500 pb-4 leading-relaxed whitespace-pre-line">
+          {product.description}
+        </p>
+      ),
+    },
+    {
+      key: 'material',
+      title: 'Material & Care',
+      open: materialOpen,
+      setOpen: setMaterialOpen,
+      content: (
+        <p className="text-sm text-stone-500 pb-4 leading-relaxed whitespace-pre-line">
+          {`Material: ${product.material || 'Premium fabric'}\n${product.careInstructions?.join('\n') || 'Follow care label instructions.'}`}
+        </p>
+      ),
+    },
+    ...(hasSizeChart ? [{
+      key: 'sizeChart',
+      title: 'Size Chart',
+      icon: <Ruler size={12} className="text-stone-400" />,
+      open: sizeChartOpen,
+      setOpen: setSizeChartOpen,
+      content: (
+        <div className="pb-4 space-y-3">
+          {product.sizeChart.unit && (
+            <p className="text-[10px] font-mono text-stone-400 uppercase tracking-wider">
+              All measurements in {product.sizeChart.unit === 'in' ? 'inches' : 'centimetres'}
+            </p>
+          )}
+          <SizeChartTable sizeChart={product.sizeChart} />
+          <p className="text-[10px] text-stone-400 leading-relaxed">
+            Measurements are approximate. If you're between sizes, we recommend sizing up.
+          </p>
+        </div>
+      ),
+    }] : []),
+  ]
 
   return (
     <PageTransition>
       <div className="page-container py-8 md:py-14">
+
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-xs text-stone-400 mb-8 font-mono">
           <Link to="/" className="hover:text-obsidian-900 transition-colors">Home</Link>
           <span>/</span>
           <Link to="/shop" className="hover:text-obsidian-900 transition-colors">Shop</Link>
           <span>/</span>
-          <Link to={`/shop?category=${product.category}`} className="hover:text-obsidian-900 transition-colors capitalize">{product.category}</Link>
+          <Link to={`/shop?category=${product.category}`} className="hover:text-obsidian-900 transition-colors capitalize">
+            {product.category}
+          </Link>
           <span>/</span>
           <span className="text-obsidian-900 line-clamp-1">{product.name}</span>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16">
-          {/* Image Gallery */}
+
+          {/* ── Image Gallery ── */}
           <div className="space-y-3">
             <div className="relative aspect-[4/5] overflow-hidden bg-cream-100 group">
               <AnimatePresence mode="wait">
@@ -164,7 +279,6 @@ export default function ProductDetailPage() {
                   className="w-full h-full object-cover"
                 />
               </AnimatePresence>
-              {/* Nav arrows */}
               {product.images.length > 1 && (
                 <>
                   <button
@@ -178,7 +292,9 @@ export default function ProductDetailPage() {
                 </>
               )}
               {product.discountPercent > 0 && (
-                <div className="absolute top-4 left-4"><span className="badge-sale">-{product.discountPercent}%</span></div>
+                <div className="absolute top-4 left-4">
+                  <span className="badge-sale">-{product.discountPercent}%</span>
+                </div>
               )}
             </div>
 
@@ -201,12 +317,16 @@ export default function ProductDetailPage() {
             )}
           </div>
 
-          {/* Product Info */}
+          {/* ── Product Info ── */}
           <div className="flex flex-col">
             <div className="mb-2">
-              <span className="font-mono text-[10px] tracking-[0.3em] uppercase text-gold-500 capitalize">{product.category}</span>
+              <span className="font-mono text-[10px] tracking-[0.3em] uppercase text-gold-500 capitalize">
+                {product.category}
+              </span>
             </div>
-            <h1 className="font-display text-3xl md:text-4xl font-light text-obsidian-900 mb-3">{product.name}</h1>
+            <h1 className="font-display text-3xl md:text-4xl font-light text-obsidian-900 mb-3">
+              {product.name}
+            </h1>
 
             {/* Rating */}
             <div className="flex items-center gap-3 mb-5">
@@ -220,7 +340,9 @@ export default function ProductDetailPage() {
             <div className="flex items-baseline gap-3 mb-7">
               <span className="font-display text-3xl font-medium">{formatPrice(product.price)}</span>
               {product.comparePrice > product.price && (
-                <span className="text-stone-400 line-through font-mono text-base">{formatPrice(product.comparePrice)}</span>
+                <span className="text-stone-400 line-through font-mono text-base">
+                  {formatPrice(product.comparePrice)}
+                </span>
               )}
               {product.comparePrice > product.price && (
                 <span className="badge-sale">Save {product.discountPercent}%</span>
@@ -231,7 +353,21 @@ export default function ProductDetailPage() {
             <div className="mb-5">
               <div className="flex items-center justify-between mb-3">
                 <label className="text-xs tracking-[0.15em] uppercase text-obsidian-900 font-mono">Size</label>
-                <button className="text-xs text-stone-400 hover:text-obsidian-900 underline underline-offset-2 transition-colors">Size Guide</button>
+                {/* Size Guide button — only shown when chart exists */}
+                {hasSizeChart ? (
+                  <button
+                    type="button"
+                    onClick={handleOpenSizeChart}
+                    className="flex items-center gap-1.5 text-xs text-stone-400 hover:text-obsidian-900 underline underline-offset-2 transition-colors"
+                  >
+                    <Ruler size={11} />
+                    Size Guide
+                  </button>
+                ) : (
+                  <button className="text-xs text-stone-400 hover:text-obsidian-900 underline underline-offset-2 transition-colors">
+                    Size Guide
+                  </button>
+                )}
               </div>
               <div className="flex flex-wrap gap-2">
                 {sizes.map(size => {
@@ -259,87 +395,76 @@ export default function ProductDetailPage() {
             </div>
 
             {/* Color Selector */}
-         <div className="mb-8">
-  <label className="block text-xs tracking-[0.15em] uppercase text-obsidian-900 font-mono mb-4">
-    Color
-    {selectedColor && (
-      <span className="normal-case tracking-normal text-stone-500 ml-2">
-        — {selectedColor}
-      </span>
-    )}
-  </label>
+            <div className="mb-8">
+              <label className="block text-xs tracking-[0.15em] uppercase text-obsidian-900 font-mono mb-4">
+                Color
+                {selectedColor && (
+                  <span className="normal-case tracking-normal text-stone-500 ml-2">— {selectedColor}</span>
+                )}
+              </label>
+              <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
+                {colors.map(color => {
+                  const variant = product.variants.find(v =>
+                    v.color === color && (!selectedSize || v.size === selectedSize)
+                  )
+                  const isOutOfStock = !variant || variant.stock === 0
+                  const isSelected = selectedColor === color
+                  const hex = variant?.colorHex || '#888'
 
-  <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
-    {colors.map(color => {
-      const variant = product.variants.find(v =>
-        v.color === color && (!selectedSize || v.size === selectedSize)
-      )
-
-      const isOutOfStock = !variant || variant.stock === 0
-      const isSelected = selectedColor === color
-      const hex = variant?.colorHex || '#888'
-
-      return (
-        <motion.button
-          key={color}
-          whileHover={{ scale: isOutOfStock ? 1 : 1.05 }}
-          whileTap={{ scale: isOutOfStock ? 1 : 0.95 }}
-          onClick={() => {
-            if (isOutOfStock) return
-
-            setSelectedColor(color)
-
-            // ✅ Auto change image based on color
-            const imageIndex = product.images.findIndex(img =>
-              img.url.toLowerCase().includes(color.toLowerCase())
-            )
-            if (imageIndex !== -1) setActiveImg(imageIndex)
-          }}
-          disabled={isOutOfStock}
-          className={`relative flex flex-col items-center gap-2 p-2 border transition-all ${
-            isSelected
-              ? 'border-obsidian-900 bg-cream-50'
-              : 'border-stone-200 hover:border-obsidian-900'
-          } ${isOutOfStock ? 'opacity-40 cursor-not-allowed' : ''}`}
-        >
-          {/* Color Circle */}
-          <div
-            className="w-10 h-10 rounded-full border"
-            style={{ backgroundColor: hex }}
-          />
-
-          {/* Color Name */}
-          <span className="text-[10px] font-mono text-center">
-            {color}
-          </span>
-
-          {/* Selected Indicator */}
-          {isSelected && (
-            <div className="absolute top-1 right-1">
-              <Check size={12} className="text-obsidian-900" />
+                  return (
+                    <motion.button
+                      key={color}
+                      whileHover={{ scale: isOutOfStock ? 1 : 1.05 }}
+                      whileTap={{ scale: isOutOfStock ? 1 : 0.95 }}
+                      onClick={() => {
+                        if (isOutOfStock) return
+                        setSelectedColor(color)
+                        const imageIndex = product.images.findIndex(img =>
+                          img.url.toLowerCase().includes(color.toLowerCase())
+                        )
+                        if (imageIndex !== -1) setActiveImg(imageIndex)
+                      }}
+                      disabled={isOutOfStock}
+                      className={`relative flex flex-col items-center gap-2 p-2 border transition-all ${
+                        isSelected
+                          ? 'border-obsidian-900 bg-cream-50'
+                          : 'border-stone-200 hover:border-obsidian-900'
+                      } ${isOutOfStock ? 'opacity-40 cursor-not-allowed' : ''}`}
+                    >
+                      <div className="w-10 h-10 rounded-full border" style={{ backgroundColor: hex }} />
+                      <span className="text-[10px] font-mono text-center">{color}</span>
+                      {isSelected && (
+                        <div className="absolute top-1 right-1">
+                          <Check size={12} className="text-obsidian-900" />
+                        </div>
+                      )}
+                      {isOutOfStock && (
+                        <span className="absolute inset-0 flex items-center justify-center text-[9px] font-mono bg-white/70">
+                          Out
+                        </span>
+                      )}
+                    </motion.button>
+                  )
+                })}
+              </div>
             </div>
-          )}
-
-          {/* Out of Stock Overlay */}
-          {isOutOfStock && (
-            <span className="absolute inset-0 flex items-center justify-center text-[9px] font-mono bg-white/70">
-              Out
-            </span>
-          )}
-        </motion.button>
-      )
-    })}
-  </div>
-</div>
 
             {/* Stock indicator */}
             {selectedVariant && (
               <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className={`text-xs mb-4 font-mono ${selectedVariant.stock > 5 ? 'text-green-600' : selectedVariant.stock > 0 ? 'text-amber-600' : 'text-red-500'}`}
+                className={`text-xs mb-4 font-mono ${
+                  selectedVariant.stock > 5 ? 'text-green-600'
+                  : selectedVariant.stock > 0 ? 'text-amber-600'
+                  : 'text-red-500'
+                }`}
               >
-                {selectedVariant.stock > 5 ? '✓ In Stock' : selectedVariant.stock > 0 ? `Only ${selectedVariant.stock} left` : '✗ Out of Stock'}
+                {selectedVariant.stock > 5
+                  ? '✓ In Stock'
+                  : selectedVariant.stock > 0
+                  ? `Only ${selectedVariant.stock} left`
+                  : '✗ Out of Stock'}
               </motion.p>
             )}
 
@@ -381,28 +506,38 @@ export default function ProductDetailPage() {
               </motion.button>
             </div>
 
-            {/* Accordion Info */}
-            {[
-              { title: 'Description', content: product.description },
-              { title: 'Material & Care', content: `Material: ${product.material || 'Premium fabric'}\n${product.careInstructions?.join('\n') || 'Follow care label instructions.'}` },
-            ].map(({ title, content }) => (
-              <div key={title} className="border-t border-stone-100">
+            {/* ── Accordion Info ── */}
+            {accordionItems.map(({ key, title, icon, open, setOpen, content }) => (
+              <div key={key} className="border-t border-stone-100" ref={key === 'sizeChart' ? sizeChartRef : undefined}>
                 <button
-                  onClick={() => setDescOpen(o => title === 'Description' ? !o : o)}
-                  className="flex items-center justify-between w-full py-4"
+                  onClick={() => setOpen(o => !o)}
+                  className="flex items-center justify-between w-full py-4 group"
                 >
-                  <span className="font-mono text-[11px] tracking-[0.2em] uppercase">{title}</span>
-                  <ChevronDown size={14} className={`transition-transform ${descOpen && title === 'Description' ? 'rotate-180' : ''}`} />
+                  <span className="flex items-center gap-2 font-mono text-[11px] tracking-[0.2em] uppercase">
+                    {icon}
+                    {title}
+                    {key === 'sizeChart' && (
+                      <span className="normal-case tracking-normal font-sans text-[9px] text-stone-400 border border-stone-200 px-1.5 py-0.5 rounded-sm">
+                        {product.sizeChart.unit}
+                      </span>
+                    )}
+                  </span>
+                  <ChevronDown
+                    size={14}
+                    className={`transition-transform duration-200 text-stone-400 group-hover:text-obsidian-900 ${open ? 'rotate-180' : ''}`}
+                  />
                 </button>
-                <AnimatePresence>
-                  {(title !== 'Description' || descOpen) && (
+                <AnimatePresence initial={false}>
+                  {open && (
                     <motion.div
+                      key={`${key}-body`}
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
                       className="overflow-hidden"
                     >
-                      <p className="text-sm text-stone-500 pb-4 leading-relaxed whitespace-pre-line">{content}</p>
+                      {content}
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -411,7 +546,7 @@ export default function ProductDetailPage() {
           </div>
         </div>
 
-        {/* Reviews Section */}
+        {/* ── Reviews Section ── */}
         <ScrollReveal className="mt-20">
           <div className="border-t border-stone-100 pt-14">
             <div className="flex items-center justify-between mb-10">
@@ -421,7 +556,9 @@ export default function ProductDetailPage() {
               </div>
               <div className="hidden md:flex items-center gap-4">
                 <div className="text-center">
-                  <div className="font-display text-5xl font-light text-obsidian-900">{product.ratingsAverage?.toFixed(1)}</div>
+                  <div className="font-display text-5xl font-light text-obsidian-900">
+                    {product.ratingsAverage?.toFixed(1)}
+                  </div>
                   <StarRating value={product.ratingsAverage} readonly size={14} />
                   <p className="text-xs text-stone-400 mt-1 font-mono">{product.ratingsCount} reviews</p>
                 </div>
@@ -463,7 +600,7 @@ export default function ProductDetailPage() {
                         <p className="text-sm text-stone-500 leading-relaxed">{review.body}</p>
                       </motion.div>
                     ))}
-                    {(!reviewsData?.reviews?.length) && (
+                    {!reviewsData?.reviews?.length && (
                       <p className="text-sm text-stone-400 py-8 text-center">No reviews yet. Be the first to review!</p>
                     )}
                   </div>
@@ -476,7 +613,7 @@ export default function ProductDetailPage() {
           </div>
         </ScrollReveal>
 
-        {/* Related Products */}
+        {/* ── Related Products ── */}
         {relatedData?.length > 0 && (
           <ScrollReveal className="mt-20">
             <div className="border-t border-stone-100 pt-14">
@@ -488,6 +625,7 @@ export default function ProductDetailPage() {
             </div>
           </ScrollReveal>
         )}
+
       </div>
     </PageTransition>
   )

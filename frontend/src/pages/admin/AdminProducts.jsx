@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { motion, AnimatePresence, Reorder } from 'framer-motion'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Edit, Trash2, Search, X, GripVertical, Upload, Crop, Image as ImageIcon, Package } from 'lucide-react'
+import { Plus, Edit, Trash2, Search, X, GripVertical, Upload, Crop, Image as ImageIcon, Package, Ruler, ChevronDown, ChevronUp } from 'lucide-react'
 import { productAPI } from '../../services/api'
 import { formatPrice } from '../../utils/helpers'
 import toast from 'react-hot-toast'
@@ -494,6 +494,282 @@ function inflateToColorGroups(variants) {
   return Array.from(map.values())
 }
 
+// ─── Size Chart ────────────────────────────────────────────────────────────────
+const DEFAULT_MEASUREMENTS = ['Chest', 'Waist', 'Hip', 'Length']
+
+function buildSizeChartRows(measurements) {
+  return SIZES.map(size => ({
+    size,
+    active: ['S', 'M', 'L', 'XL'].includes(size),
+    values: measurements.reduce((acc, m) => ({ ...acc, [m]: '' }), {}),
+  }))
+}
+
+function buildDefaultSizeChart() {
+  return {
+    enabled: false,
+    unit: 'in',
+    measurements: [...DEFAULT_MEASUREMENTS],
+    rows: buildSizeChartRows(DEFAULT_MEASUREMENTS),
+  }
+}
+
+function inflateSizeChart(raw) {
+  if (!raw) return buildDefaultSizeChart()
+  const measurements = raw.measurements || [...DEFAULT_MEASUREMENTS]
+  return {
+    enabled: true,
+    unit: raw.unit || 'in',
+    measurements,
+    rows: SIZES.map(size => {
+      const existing = (raw.rows || []).find(r => r.size === size)
+      return {
+        size,
+        active: !!existing,
+        values: measurements.reduce((acc, m) => ({ ...acc, [m]: existing?.values?.[m] ?? '' }), {}),
+      }
+    }),
+  }
+}
+
+const PRESET_TEMPLATES = {
+  Tops:     ['Chest', 'Waist', 'Hip', 'Shoulder', 'Sleeve Length'],
+  Bottoms:  ['Waist', 'Hip', 'Inseam', 'Rise', 'Thigh'],
+  Dresses:  ['Chest', 'Waist', 'Hip', 'Length', 'Shoulder'],
+  Footwear: ['UK', 'EU', 'US', 'Foot Length (cm)'],
+}
+
+function SizeChartBuilder({ sizeChart, setSizeChart }) {
+  const [open, setOpen] = useState(false)
+  const [newMeasurement, setNewMeasurement] = useState('')
+
+  const toggle = () => {
+    setSizeChart(sc => ({ ...sc, enabled: !sc.enabled }))
+    if (!sizeChart.enabled) setOpen(true)
+  }
+
+  const setUnit = (unit) => setSizeChart(sc => ({ ...sc, unit }))
+
+  const addMeasurement = () => {
+    const name = newMeasurement.trim()
+    if (!name) return
+    if (sizeChart.measurements.includes(name)) { toast.error('Measurement already exists'); return }
+    setSizeChart(sc => ({
+      ...sc,
+      measurements: [...sc.measurements, name],
+      rows: sc.rows.map(r => ({ ...r, values: { ...r.values, [name]: '' } })),
+    }))
+    setNewMeasurement('')
+  }
+
+  const removeMeasurement = (m) =>
+    setSizeChart(sc => ({
+      ...sc,
+      measurements: sc.measurements.filter(x => x !== m),
+      rows: sc.rows.map(r => { const { [m]: _, ...rest } = r.values; return { ...r, values: rest } }),
+    }))
+
+  const applyTemplate = (key) => {
+    const measurements = PRESET_TEMPLATES[key]
+    setSizeChart(sc => ({
+      ...sc,
+      measurements,
+      rows: sc.rows.map(r => ({
+        ...r,
+        values: measurements.reduce((acc, m) => ({ ...acc, [m]: r.values[m] ?? '' }), {}),
+      })),
+    }))
+  }
+
+  const toggleRow = (size) =>
+    setSizeChart(sc => ({
+      ...sc,
+      rows: sc.rows.map(r => r.size === size ? { ...r, active: !r.active } : r),
+    }))
+
+  const updateCell = (size, m, value) =>
+    setSizeChart(sc => ({
+      ...sc,
+      rows: sc.rows.map(r =>
+        r.size === size ? { ...r, values: { ...r.values, [m]: value } } : r
+      ),
+    }))
+
+  const activeRows = sizeChart.rows.filter(r => r.active)
+
+  return (
+    <section className="border border-stone-200 rounded-xl overflow-hidden">
+      {/* Header toggle */}
+      <div
+        className={`flex items-center justify-between px-4 py-3 cursor-pointer select-none transition-colors ${sizeChart.enabled ? 'bg-stone-900' : 'bg-stone-50 hover:bg-stone-100'}`}
+        onClick={toggle}
+      >
+        <div className="flex items-center gap-2">
+          <Ruler size={13} className={sizeChart.enabled ? 'text-stone-300' : 'text-stone-400'} />
+          <span className={`text-[10px] font-mono tracking-widest uppercase ${sizeChart.enabled ? 'text-white' : 'text-stone-500'}`}>
+            Size Chart
+          </span>
+          {sizeChart.enabled && activeRows.length > 0 && (
+            <span className="bg-white/20 text-white text-[9px] font-mono px-2 py-0.5 rounded-full">
+              {activeRows.length} sizes · {sizeChart.measurements.length} measurements
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {sizeChart.enabled && (
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); setOpen(o => !o) }}
+              className="text-stone-300 hover:text-white transition-colors p-0.5"
+            >
+              {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+          )}
+          <div className={`w-8 h-4 rounded-full relative transition-colors pointer-events-none ${sizeChart.enabled ? 'bg-white/30' : 'bg-stone-200'}`}>
+            <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow-sm transition-all ${sizeChart.enabled ? 'left-4' : 'left-0.5'}`} />
+          </div>
+        </div>
+      </div>
+
+      {/* Body */}
+      <AnimatePresence>
+        {sizeChart.enabled && open && (
+          <motion.div
+            key="chart-body"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="p-4 space-y-4 border-t border-stone-100">
+
+              {/* Unit + Presets */}
+              <div className="flex items-start gap-4 flex-wrap">
+                <div>
+                  <p className="text-[9px] font-mono text-stone-400 uppercase tracking-wider mb-1.5">Unit</p>
+                  <div className="flex gap-1">
+                    {['in', 'cm'].map(u => (
+                      <button key={u} type="button" onClick={() => setUnit(u)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-mono border transition-all ${sizeChart.unit === u ? 'bg-stone-900 text-white border-stone-900' : 'border-stone-200 text-stone-500 hover:border-stone-400'}`}>
+                        {u}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[9px] font-mono text-stone-400 uppercase tracking-wider mb-1.5">Quick presets</p>
+                  <div className="flex gap-1 flex-wrap">
+                    {Object.keys(PRESET_TEMPLATES).map(key => (
+                      <button key={key} type="button" onClick={() => applyTemplate(key)}
+                        className="px-2.5 py-1.5 rounded-lg text-[10px] border border-stone-200 text-stone-500 hover:border-stone-800 hover:text-stone-800 transition-colors">
+                        {key}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Measurement columns */}
+              <div>
+                <p className="text-[9px] font-mono text-stone-400 uppercase tracking-wider mb-2">Measurement columns</p>
+                <div className="flex gap-1.5 flex-wrap items-center">
+                  {sizeChart.measurements.map(m => (
+                    <span key={m} className="flex items-center gap-1 bg-stone-100 text-stone-700 text-[10px] font-mono px-2 py-1 rounded-lg">
+                      {m}
+                      <button type="button" onClick={() => removeMeasurement(m)}
+                        className="text-stone-400 hover:text-red-500 transition-colors leading-none">
+                        <X size={9} />
+                      </button>
+                    </span>
+                  ))}
+                  <div className="flex items-center gap-1">
+                    <input
+                      value={newMeasurement}
+                      onChange={e => setNewMeasurement(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addMeasurement() } }}
+                      placeholder="Add column…"
+                      className="border border-dashed border-stone-300 rounded-lg px-2.5 py-1 text-[10px] outline-none focus:border-stone-600 w-32 transition-colors"
+                    />
+                    <button type="button" onClick={addMeasurement}
+                      className="w-6 h-6 rounded-lg bg-stone-900 text-white flex items-center justify-center hover:bg-stone-700 transition-colors flex-shrink-0">
+                      <Plus size={10} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Size row toggles */}
+              <div>
+                <p className="text-[9px] font-mono text-stone-400 uppercase tracking-wider mb-2">Sizes in chart</p>
+                <div className="flex gap-1.5 flex-wrap">
+                  {sizeChart.rows.map(row => (
+                    <button key={row.size} type="button" onClick={() => toggleRow(row.size)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-mono border transition-all ${row.active ? 'bg-stone-900 text-white border-stone-900' : 'border-stone-200 text-stone-400 hover:border-stone-400'}`}>
+                      {row.size}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Table */}
+              {activeRows.length > 0 && sizeChart.measurements.length > 0 ? (
+                <div className="overflow-x-auto rounded-xl border border-stone-100">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-stone-50 border-b border-stone-100">
+                        <th className="px-3 py-2.5 text-left text-[9px] font-mono text-stone-400 uppercase tracking-wider w-12 sticky left-0 bg-stone-50">
+                          Size
+                        </th>
+                        {sizeChart.measurements.map(m => (
+                          <th key={m} className="px-3 py-2.5 text-left text-[9px] font-mono text-stone-400 uppercase tracking-wider min-w-[88px] whitespace-nowrap">
+                            {m}
+                            <span className="ml-1 normal-case text-stone-300 font-normal">({sizeChart.unit})</span>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-50">
+                      {activeRows.map(row => (
+                        <tr key={row.size} className="hover:bg-stone-50/50 transition-colors">
+                          <td className="px-3 py-2 sticky left-0 bg-white">
+                            <span className="font-mono text-[10px] font-semibold text-stone-700 bg-stone-100 px-2 py-1 rounded">
+                              {row.size}
+                            </span>
+                          </td>
+                          {sizeChart.measurements.map(m => (
+                            <td key={m} className="px-2 py-1.5">
+                              <input
+                                type="text"
+                                value={row.values[m] ?? ''}
+                                onChange={e => updateCell(row.size, m, e.target.value)}
+                                placeholder="—"
+                                className="w-full border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs text-center outline-none focus:border-stone-800 transition-colors bg-white"
+                              />
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-[10px] text-stone-300 italic text-center py-4 border border-dashed border-stone-100 rounded-xl">
+                  {activeRows.length === 0 ? 'Enable at least one size above' : 'Add at least one measurement column'}
+                </p>
+              )}
+
+              <p className="text-[9px] text-stone-300 font-mono">
+                Leave cells blank to hide them. Chart is serialized as JSON on submit.
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </section>
+  )
+}
+
 // ─── Bulk Upload Modal ──────────────────────────────────────────────────────────
 function BulkUploadModal({ onClose, onImport }) {
   const [rows, setRows] = useState([
@@ -631,6 +907,11 @@ function ProductFormModal({ product, onClose }) {
       : [{ id: Date.now(), color: '', imageId: '', sizes: buildEmptySizes() }]
   )
 
+  // Size chart state
+  const [sizeChart, setSizeChart] = useState(
+    product?.sizeChart ? inflateSizeChart(product.sizeChart) : buildDefaultSizeChart()
+  )
+
   const mutation = useMutation({
     mutationFn: (formData) =>
       isEdit ? productAPI.update(product._id, formData) : productAPI.create(formData),
@@ -680,6 +961,19 @@ function ProductFormModal({ product, onClose }) {
       formData.append(k, v)
     })
     formData.append('variants', JSON.stringify(flatVariants))
+
+    // Size chart — only send if enabled and has data
+    if (sizeChart.enabled) {
+      const chartPayload = {
+        unit: sizeChart.unit,
+        measurements: sizeChart.measurements,
+        rows: sizeChart.rows
+          .filter(r => r.active)
+          .map(r => ({ size: r.size, values: r.values })),
+      }
+      formData.append('sizeChart', JSON.stringify(chartPayload))
+    }
+
     images.forEach(img => { if (img.file) formData.append('images', img.file) })
 
     mutation.mutate(formData)
@@ -767,6 +1061,9 @@ function ProductFormModal({ product, onClose }) {
             setColorGroups={setColorGroups}
             images={images}
           />
+
+          {/* ── Size Chart ── */}
+          <SizeChartBuilder sizeChart={sizeChart} setSizeChart={setSizeChart} />
 
           {/* ── Flags ── */}
           <section className="flex gap-6">
