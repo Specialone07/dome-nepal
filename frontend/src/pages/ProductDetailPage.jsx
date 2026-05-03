@@ -259,36 +259,78 @@ export default function ProductDetailPage() {
             </div>
 
             {/* Color Selector */}
-            <div className="mb-8">
-              <label className="block text-xs tracking-[0.15em] uppercase text-obsidian-900 font-mono mb-3">
-                Color {selectedColor && <span className="normal-case tracking-normal text-stone-500 ml-2">— {selectedColor}</span>}
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {colors.map(color => {
-                  const variant = product.variants.find(v =>
-                    v.color === color && (!selectedSize || v.size === selectedSize)
-                  )
-                  const hex = variant?.colorHex || '#888'
-                  return (
-                    <motion.button
-                      key={color}
-                      whileHover={{ scale: 1.12 }}
-                      whileTap={{ scale: 0.92 }}
-                      onClick={() => setSelectedColor(selectedColor === color ? '' : color)}
-                      title={color}
-                      className={`w-8 h-8 rounded-full border-2 transition-all ${
-                        selectedColor === color ? 'border-obsidian-900 scale-110' : 'border-transparent hover:border-stone-300'
-                      }`}
-                      style={{ backgroundColor: hex }}
-                    >
-                      {selectedColor === color && (
-                        <Check size={12} className="m-auto text-white drop-shadow-md" />
-                      )}
-                    </motion.button>
-                  )
-                })}
-              </div>
+         <div className="mb-8">
+  <label className="block text-xs tracking-[0.15em] uppercase text-obsidian-900 font-mono mb-4">
+    Color
+    {selectedColor && (
+      <span className="normal-case tracking-normal text-stone-500 ml-2">
+        — {selectedColor}
+      </span>
+    )}
+  </label>
+
+  <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
+    {colors.map(color => {
+      const variant = product.variants.find(v =>
+        v.color === color && (!selectedSize || v.size === selectedSize)
+      )
+
+      const isOutOfStock = !variant || variant.stock === 0
+      const isSelected = selectedColor === color
+      const hex = variant?.colorHex || '#888'
+
+      return (
+        <motion.button
+          key={color}
+          whileHover={{ scale: isOutOfStock ? 1 : 1.05 }}
+          whileTap={{ scale: isOutOfStock ? 1 : 0.95 }}
+          onClick={() => {
+            if (isOutOfStock) return
+
+            setSelectedColor(color)
+
+            // ✅ Auto change image based on color
+            const imageIndex = product.images.findIndex(img =>
+              img.url.toLowerCase().includes(color.toLowerCase())
+            )
+            if (imageIndex !== -1) setActiveImg(imageIndex)
+          }}
+          disabled={isOutOfStock}
+          className={`relative flex flex-col items-center gap-2 p-2 border transition-all ${
+            isSelected
+              ? 'border-obsidian-900 bg-cream-50'
+              : 'border-stone-200 hover:border-obsidian-900'
+          } ${isOutOfStock ? 'opacity-40 cursor-not-allowed' : ''}`}
+        >
+          {/* Color Circle */}
+          <div
+            className="w-10 h-10 rounded-full border"
+            style={{ backgroundColor: hex }}
+          />
+
+          {/* Color Name */}
+          <span className="text-[10px] font-mono text-center">
+            {color}
+          </span>
+
+          {/* Selected Indicator */}
+          {isSelected && (
+            <div className="absolute top-1 right-1">
+              <Check size={12} className="text-obsidian-900" />
             </div>
+          )}
+
+          {/* Out of Stock Overlay */}
+          {isOutOfStock && (
+            <span className="absolute inset-0 flex items-center justify-center text-[9px] font-mono bg-white/70">
+              Out
+            </span>
+          )}
+        </motion.button>
+      )
+    })}
+  </div>
+</div>
 
             {/* Stock indicator */}
             {selectedVariant && (
