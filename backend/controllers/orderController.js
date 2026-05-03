@@ -8,154 +8,143 @@ const crypto = require('crypto');
    CREATE ORDER
 ========================================================= */
 const createOrder = asyncHandler(async (req, res) => {
-  try {
-    const { items, shippingAddress, couponCode } = req.body;
+  const {
+    items,
+    shippingAddress,
+    couponCode,
+    subtotal,
+    shippingPrice,
+    discount,
+    totalPrice
+  } = req.body;
 
-    // ================= VALIDATION =================
-    if (!items || items.length === 0) {
-      res.status(400);
-      throw new Error('No order items');
-    }
-
-    if (
-      !shippingAddress ||
-      !shippingAddress.name ||
-      !shippingAddress.email ||
-      !shippingAddress.phone ||
-      !shippingAddress.street ||
-      !shippingAddress.city
-    ) {
-      res.status(400);
-      throw new Error('Incomplete shipping details');
-    }
-
-    // ================= FETCH PRODUCTS =================
-    const productIds = items.map(item => item.product);
-    const products = await Product.find({ _id: { $in: productIds } });
-
-    let subtotal = 0;
-    const orderItems = [];
-
-    for (const item of items) {
-      const product = products.find(p => p._id.toString() === item.product);
-
-      if (!product) {
-        res.status(404);
-        throw new Error(`Product not found: ${item.product}`);
-      }
-
-      const variant = product.variants.find(
-        v => v.size === item.size && v.color === item.color
-      );
-
-      if (!variant) {
-        res.status(400);
-        throw new Error(`Variant not found for ${product.name}`);
-      }
-
-      if (variant.stock < item.quantity) {
-        res.status(400);
-        throw new Error(`Insufficient stock for ${product.name}`);
-      }
-
-      const price = variant.price || product.price;
-      subtotal += price * item.quantity;
-
-      orderItems.push({
-        product: product._id,
-        name: product.name,
-        image: product.images?.[0]?.url || '',
-        price,
-        size: item.size,
-        color: item.color,
-        quantity: item.quantity,
-      });
-    }
-
-    // ================= PRICING =================
-    const shippingPrice = subtotal >= 5000 ? 0 : 200;
-    // const taxPrice = Math.round(subtotal * 0.13);
-
-    let discount = 0;
-    if (couponCode === 'DOME10') {
-      // discount = Math.round(subtotal * 0.1);
-    }
-
-    const totalPrice = subtotal + shippingPrice + ( - discount);
-
-    // ================= GUEST LOGIC =================
-    let guestId = null;
-
-    if (!req.user) {
-      guestId = req.headers['x-guest-id'];
-
-      if (!guestId) {
-        guestId = crypto.randomUUID();
-      }
-    }
-
-    // ================= CREATE ORDER =================
-   const order = await Order.create({
-  user: req.user?._id || null,
-  guestId,
-  isGuest: !req.user,
-  items: orderItems,
-  shippingAddress,
-  paymentMethod: 'cash_on_delivery',
-  subtotal,
-  shippingPrice,
-  // ❌ remove taxPrice
-  discount,
-  couponCode,
-  totalPrice,
-  status: 'pending',
-  trackingEvents: [
-    {
-      status: 'pending',
-      message: 'Order placed successfully',
-      location: 'Online',
-    },
-  ],
-});
-
-    // ================= UPDATE STOCK =================
-    for (const item of items) {
-      await Product.updateOne(
-        {
-          _id: item.product,
-          'variants.size': item.size,
-          'variants.color': item.color,
-        },
-        {
-          $inc: {
-            'variants.$.stock': -item.quantity,
-            totalSold: item.quantity,
-          },
-        }
-      );
-    }
-
-    // ================= NOTIFICATIONS =================
-    try {
-      await sendOrderNotifications(order);
-    } catch (err) {
-      console.error('Notification failed:', err.message);
-    }
-
-    // ================= RESPONSE =================
-    const response = {
-      success: true,
-      message: 'Order placed successfully',
-      data: { order },
-    };
-
-    if (guestId) response.guestId = guestId;
-
-    res.status(201).json(response);
-
-  } catch (error) {
-    throw error;
+  // ================= VALIDATION =================
+  if (!items || items.length === 0) {
+    res.status(400);
+    throw new Error('No order items');
   }
+
+  if (
+    !shippingAddress ||
+    !shippingAddress.name ||
+    !shippingAddress.email ||
+    !shippingAddress.phone ||
+    !shippingAddress.street ||
+    !shippingAddress.city
+  ) {
+    res.status(400);
+    throw new Error('Incomplete shipping details');
+  }
+
+  // ================= FETCH PRODUCTS =================
+  const productIds = items.map(item => item.product);
+  const products = await Product.find({ _id: { $in: productIds } });
+
+  const orderItems = [];
+
+  for (const item of items) {
+    const product = products.find(p => p._id.toString() === item.product);
+
+    if (!product) {
+      res.status(404);
+      throw new Error(`Product not found: ${item.product}`);
+    }
+
+    const variant = product.variants.find(
+      v => v.size === item.size && v.color === item.color
+    );
+
+    if (!variant) {
+      res.status(400);
+      throw new Error(`Variant not found for ${product.name}`);
+    }
+
+    if (variant.stock < item.quantity) {
+      res.status(400);
+      throw new Error(`Insufficient stock for ${product.name}`);
+    }
+
+    const price = variant.price || product.price;
+
+    orderItems.push({
+      product: product._id,
+      name: product.name,
+      image: product.images?.[0]?.url || '',
+      price,
+      size: item.size,
+      color: item.color,
+      quantity: item.quantity,
+    });
+  }
+
+  // ================= GUEST LOGIC =================
+  let guestId = null;
+
+  if (!req.user) {
+    guestId = req.headers['x-guest-id'] || crypto.randomUUID();
+  }
+
+  // ================= CREATE ORDER =================
+  const order = await Order.create({
+    user: req.user?._id || null,
+    guestId,
+    isGuest: !req.user,
+    items: orderItems,
+    shippingAddress,
+    paymentMethod: 'cash_on_delivery',
+
+    subtotal,
+    shippingPrice,
+    discount,
+    couponCode,
+    totalPrice,
+
+    status: 'pending',
+    trackingEvents: [
+      {
+        status: 'pending',
+        message: 'Order placed successfully',
+        location: 'Online',
+      },
+    ],
+  });
+
+  // ================= UPDATE STOCK =================
+  for (const item of items) {
+    await Product.updateOne(
+      {
+        _id: item.product,
+        'variants.size': item.size,
+        'variants.color': item.color,
+      },
+      {
+        $inc: {
+          'variants.$.stock': -item.quantity,
+          totalSold: item.quantity,
+        },
+      }
+    );
+  }
+
+  // ================= RESPONSE FIRST =================
+  const response = {
+    success: true,
+    message: 'Order placed successfully',
+    data: { order },
+  };
+
+  if (guestId) response.guestId = guestId;
+
+  res.status(201).json(response);
+
+  // ================= BACKGROUND NOTIFICATIONS =================
+  setImmediate(() => {
+    sendOrderNotifications(order)
+      .then(() => console.log('Notification sent'))
+      .catch(err =>
+        console.error('Notification failed:', err.message)
+      );
+  });
 });
 
 /* =========================================================
