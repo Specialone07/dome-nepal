@@ -279,12 +279,12 @@ const handlePlaceOrder = async () => {
                   <div className="flex gap-2 mb-5">
                     <input
                       value={coupon} onChange={e => setCoupon(e.target.value.toUpperCase())}
-                      placeholder="Coupon code (DOME10)"
+                      placeholder="Coupon code (DOME08)"
                       className="input-field text-xs flex-1"
                     />
                     <button
                       onClick={() => {
-                        if (coupon === 'DOME10') { setCouponApplied(true); toast.success('10% discount applied!') }
+                        if (coupon === 'DOME08') { setCouponApplied(true); toast.success('08% discount applied!') }
                         else toast.error('Invalid coupon code')
                       }}
                       className="btn-outline text-[10px] px-4 whitespace-nowrap"
@@ -296,7 +296,7 @@ const handlePlaceOrder = async () => {
                       { label: 'Subtotal', value: formatPrice(subtotal) },
                       { label: 'Shipping', value: shippingFee === 0 ? 'Free' : formatPrice(shippingFee) },
                       // { label: 'VAT (13%)', value: formatPrice(tax) },
-                      ...(couponApplied ? [{ label: 'Discount (10%)', value: `-${formatPrice(discount)}`, red: true }] : []),
+                      ...(couponApplied ? [{ label: 'Discount (8%)', value: `-${formatPrice(discount)}`, red: true }] : []),
                     ].map(({ label, value, red }) => (
                       <div key={label} className="flex justify-between text-xs">
                         <span className="text-stone-500">{label}</span>
