@@ -284,7 +284,7 @@ const handlePlaceOrder = async () => {
                     />
                     <button
                       onClick={() => {
-                        if (coupon === 'DOME08') { setCouponApplied(true); toast.success('08% discount applied!') }
+                        if (coupon === 'DOME05') { setCouponApplied(true); toast.success('05% discount applied!') }
                         else toast.error('Invalid coupon code')
                       }}
                       className="btn-outline text-[10px] px-4 whitespace-nowrap"
@@ -296,7 +296,7 @@ const handlePlaceOrder = async () => {
                       { label: 'Subtotal', value: formatPrice(subtotal) },
                       { label: 'Shipping', value: shippingFee === 0 ? 'Free' : formatPrice(shippingFee) },
                       // { label: 'VAT (13%)', value: formatPrice(tax) },
-                      ...(couponApplied ? [{ label: 'Discount (8%)', value: `-${formatPrice(discount)}`, red: true }] : []),
+                      ...(couponApplied ? [{ label: 'Discount (5%)', value: `-${formatPrice(discount)}`, red: true }] : []),
                     ].map(({ label, value, red }) => (
                       <div key={label} className="flex justify-between text-xs">
                         <span className="text-stone-500">{label}</span>
