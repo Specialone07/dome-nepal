@@ -279,7 +279,7 @@ const handlePlaceOrder = async () => {
                   <div className="flex gap-2 mb-5">
                     <input
                       value={coupon} onChange={e => setCoupon(e.target.value.toUpperCase())}
-                      placeholder="Coupon code (DOME08)"
+                      placeholder="Coupon code (DOME05)"
                       className="input-field text-xs flex-1"
                     />
                     <button
