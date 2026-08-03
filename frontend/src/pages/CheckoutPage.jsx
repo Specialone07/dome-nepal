@@ -27,7 +27,7 @@ export default function CheckoutPage() {
   const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0)
   const shippingFee = subtotal >= 5000 ? 0 : 180
   // const tax = Math.round(subtotal * 0.13)
-  const discount = couponApplied ? Math.round(subtotal * 0.1) : 0
+  const discount = couponApplied ? Math.round(subtotal * 0.05) : 0
   const total = subtotal + shippingFee + (- discount)
 
   const handleShippingSubmit = (e) => {
