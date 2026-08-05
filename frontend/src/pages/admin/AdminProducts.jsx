@@ -531,7 +531,7 @@ function inflateToColorGroups(variants) {
 function buildDefaultSizeChart() {
   return {
     ...DEFAULT_SIZE_CHART,
-    rows: buildSizeChartRows(DEFAULT_SIZES, [])
+    rows: [] // Start with no sizes for new products
   };
 }
 
@@ -540,22 +540,12 @@ function inflateSizeChart(raw) {
   
   const normalized = normalizeSizeChartFromAPI(raw);
   
-  // Ensure all default sizes exist
-  const allSizes = [...DEFAULT_SIZES];
-  const existingSizes = normalized.rows.map(r => r.size);
-  const missingSizes = allSizes.filter(s => !existingSizes.includes(s));
-  
-  const rows = [
-    ...normalized.rows.map(r => ({
-      ...r,
-      active: true
-    })),
-    ...missingSizes.map(size => ({
-      size,
-      active: false,
-      values: normalized.measurements.reduce((acc, m) => ({ ...acc, [m.key]: '' }), {})
-    }))
-  ];
+  // Only use the sizes that exist in the product's size chart
+  // Don't add default sizes automatically
+  const rows = normalized.rows.map(r => ({
+    ...r,
+    active: true // All loaded sizes should be active by default
+  }));
   
   return {
     ...normalized,
