@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from 'react'
 import { motion, AnimatePresence, Reorder } from 'framer-motion'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Edit, Trash2, Search, X, GripVertical, Upload, Crop, Image as ImageIcon, Package, Ruler, ChevronDown, ChevronUp, Eye, AlertCircle, Loader2 } from 'lucide-react'
-import { productAPI, api } from '../../services/api'
+import api, { productAPI } from '../../services/api'
 import { formatPrice } from '../../utils/helpers'
 import { 
   SIZE_CHART_PRESETS, 
