@@ -319,7 +319,39 @@ const createProduct = asyncHandler(async (req, res) => {
     // =========================
     // 6. IMAGE HANDLING
     // =========================
-    if (req.files && req.files.length > 0) {
+    // Handle images from pre-upload (JSON string) or direct file upload
+    if (data.images) {
+      try {
+        const parsedImages = typeof data.images === 'string' 
+          ? JSON.parse(data.images) 
+          : data.images;
+        
+        if (Array.isArray(parsedImages) && parsedImages.length > 0) {
+          // Images were pre-uploaded and sent as JSON
+          data.images = parsedImages;
+        } else if (req.files && req.files.length > 0) {
+          // Original flow: images uploaded as files
+          data.images = req.files.map(file => ({
+            url: file.path || file.secure_url || '',
+            publicId: file.filename || file.public_id || ''
+          }));
+        } else {
+          data.images = [];
+        }
+      } catch (err) {
+        console.log('Image parse error:', err.message);
+        // Fall back to file upload if available
+        if (req.files && req.files.length > 0) {
+          data.images = req.files.map(file => ({
+            url: file.path || file.secure_url || '',
+            publicId: file.filename || file.public_id || ''
+          }));
+        } else {
+          data.images = [];
+        }
+      }
+    } else if (req.files && req.files.length > 0) {
+      // Original flow: images uploaded as files
       data.images = req.files.map(file => ({
         url: file.path || file.secure_url || '',
         publicId: file.filename || file.public_id || ''
@@ -329,7 +361,75 @@ const createProduct = asyncHandler(async (req, res) => {
     }
 
     // =========================
-    // 7. CREATE PRODUCT
+    // 7. SIZE CHART HANDLING
+    // =========================
+    if (data.sizeChart) {
+      try {
+        const sizeChart = typeof data.sizeChart === 'string' 
+          ? JSON.parse(data.sizeChart) 
+          : data.sizeChart;
+
+        // Validate size chart structure
+        if (sizeChart.enabled) {
+          if (!sizeChart.unit || !['in', 'cm'].includes(sizeChart.unit)) {
+            sizeChart.unit = 'in';
+          }
+          if (!sizeChart.preset || !['custom', 'tops', 'bottoms', 'dresses', 'footwear'].includes(sizeChart.preset)) {
+            sizeChart.preset = 'custom';
+          }
+          
+          // Validate measurements
+          if (Array.isArray(sizeChart.measurements)) {
+            if (sizeChart.measurements.length > 10) {
+              return res.status(400).json({
+                success: false,
+                message: 'Maximum 10 measurement columns allowed'
+              });
+            }
+            // Ensure each measurement has key and label
+            sizeChart.measurements = sizeChart.measurements.map(m => ({
+              key: (m.key || m.label || '').toLowerCase().replace(/\s+/g, '_').trim(),
+              label: (m.label || m.key || '').trim()
+            })).filter(m => m.label);
+          }
+
+          // Validate rows
+          if (Array.isArray(sizeChart.rows)) {
+            if (sizeChart.rows.length > 20) {
+              return res.status(400).json({
+                success: false,
+                message: 'Maximum 20 size rows allowed'
+              });
+            }
+            // Ensure unique sizes
+            const sizes = sizeChart.rows.map(r => r.size?.trim()).filter(Boolean);
+            const uniqueSizes = new Set(sizes);
+            if (uniqueSizes.size !== sizes.length) {
+              return res.status(400).json({
+                success: false,
+                message: 'Duplicate sizes found in size chart'
+              });
+            }
+            sizeChart.rows = sizeChart.rows
+              .filter(r => r.size?.trim())
+              .map(r => ({
+                size: r.size.trim(),
+                values: r.values || {}
+              }));
+          }
+        }
+        
+        data.sizeChart = sizeChart;
+      } catch (err) {
+        console.log('Size chart parse error:', err.message);
+        data.sizeChart = { enabled: false };
+      }
+    } else {
+      data.sizeChart = { enabled: false };
+    }
+
+    // =========================
+    // 8. CREATE PRODUCT
     // =========================
     const product = await Product.create(data);
 
@@ -429,9 +529,65 @@ const updateProduct = asyncHandler(async (req, res) => {
     // =========================
     let updatedImages = existingProduct.images || [];
 
-    if (req.files && req.files.length > 0) {
-
-      // delete old images
+    // Handle images from pre-upload (JSON string) or direct file upload
+    if (data.images) {
+      try {
+        const parsedImages = typeof data.images === 'string' 
+          ? JSON.parse(data.images) 
+          : data.images;
+        
+        if (Array.isArray(parsedImages) && parsedImages.length > 0) {
+          // Images were pre-uploaded and sent as JSON
+          // Delete old images from cloudinary
+          for (const img of existingProduct.images) {
+            if (img?.publicId && cloudinary?.uploader?.destroy) {
+              try {
+                await cloudinary.uploader.destroy(img.publicId);
+              } catch (err) {
+                console.log("Cloudinary delete failed:", err.message);
+              }
+            }
+          }
+          updatedImages = parsedImages;
+        } else if (req.files && req.files.length > 0) {
+          // Original flow: images uploaded as files
+          for (const img of existingProduct.images) {
+            if (img?.publicId && cloudinary?.uploader?.destroy) {
+              try {
+                await cloudinary.uploader.destroy(img.publicId);
+              } catch (err) {
+                console.log("Cloudinary delete failed:", err.message);
+              }
+            }
+          }
+          updatedImages = req.files.map(file => ({
+            url: file.path,
+            publicId: file.filename,
+            alt: data.name || existingProduct.name
+          }));
+        }
+      } catch (err) {
+        console.log('Image parse error:', err.message);
+        // Fall back to file upload if available
+        if (req.files && req.files.length > 0) {
+          for (const img of existingProduct.images) {
+            if (img?.publicId && cloudinary?.uploader?.destroy) {
+              try {
+                await cloudinary.uploader.destroy(img.publicId);
+              } catch (err) {
+                console.log("Cloudinary delete failed:", err.message);
+              }
+            }
+          }
+          updatedImages = req.files.map(file => ({
+            url: file.path,
+            publicId: file.filename,
+            alt: data.name || existingProduct.name
+          }));
+        }
+      }
+    } else if (req.files && req.files.length > 0) {
+      // Original flow: images uploaded as files
       for (const img of existingProduct.images) {
         if (img?.publicId && cloudinary?.uploader?.destroy) {
           try {
@@ -441,7 +597,6 @@ const updateProduct = asyncHandler(async (req, res) => {
           }
         }
       }
-
       updatedImages = req.files.map(file => ({
         url: file.path,
         publicId: file.filename,
@@ -452,7 +607,77 @@ const updateProduct = asyncHandler(async (req, res) => {
     data.images = updatedImages;
 
     // =========================
-    // 6. UPDATE PRODUCT
+    // 6. SIZE CHART HANDLING
+    // =========================
+    if (data.sizeChart) {
+      try {
+        const sizeChart = typeof data.sizeChart === 'string' 
+          ? JSON.parse(data.sizeChart) 
+          : data.sizeChart;
+
+        // Validate size chart structure
+        if (sizeChart.enabled) {
+          if (!sizeChart.unit || !['in', 'cm'].includes(sizeChart.unit)) {
+            sizeChart.unit = 'in';
+          }
+          if (!sizeChart.preset || !['custom', 'tops', 'bottoms', 'dresses', 'footwear'].includes(sizeChart.preset)) {
+            sizeChart.preset = 'custom';
+          }
+          
+          // Validate measurements
+          if (Array.isArray(sizeChart.measurements)) {
+            if (sizeChart.measurements.length > 10) {
+              return res.status(400).json({
+                success: false,
+                message: 'Maximum 10 measurement columns allowed'
+              });
+            }
+            // Ensure each measurement has key and label
+            sizeChart.measurements = sizeChart.measurements.map(m => ({
+              key: (m.key || m.label || '').toLowerCase().replace(/\s+/g, '_').trim(),
+              label: (m.label || m.key || '').trim()
+            })).filter(m => m.label);
+          }
+
+          // Validate rows
+          if (Array.isArray(sizeChart.rows)) {
+            if (sizeChart.rows.length > 20) {
+              return res.status(400).json({
+                success: false,
+                message: 'Maximum 20 size rows allowed'
+              });
+            }
+            // Ensure unique sizes
+            const sizes = sizeChart.rows.map(r => r.size?.trim()).filter(Boolean);
+            const uniqueSizes = new Set(sizes);
+            if (uniqueSizes.size !== sizes.length) {
+              return res.status(400).json({
+                success: false,
+                message: 'Duplicate sizes found in size chart'
+              });
+            }
+            sizeChart.rows = sizeChart.rows
+              .filter(r => r.size?.trim())
+              .map(r => ({
+                size: r.size.trim(),
+                values: r.values || {}
+              }));
+          }
+        }
+        
+        data.sizeChart = sizeChart;
+      } catch (err) {
+        console.log('Size chart parse error:', err.message);
+        // Keep existing size chart if parse fails
+        delete data.sizeChart;
+      }
+    } else if (data.sizeChart === '' || data.sizeChart === null) {
+      // Explicitly disable if empty/null is sent
+      data.sizeChart = { enabled: false };
+    }
+
+    // =========================
+    // 7. UPDATE PRODUCT
     // =========================
     const product = await Product.findByIdAndUpdate(
       req.params.id,

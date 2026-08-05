@@ -11,52 +11,8 @@ import ProductCard from '../components/product/ProductCard'
 import StarRating from '../components/common/StarRating'
 import ScrollReveal, { ScrollRevealGroup, ScrollRevealItem } from '../components/common/ScrollReveal'
 import PageTransition from '../components/common/PageTransition'
+import SizeGuideModal from '../components/product/SizeGuideModal'
 import toast from 'react-hot-toast'
-
-// ─── Size Chart Table ───────────────────────────────────────────────────────────
-function SizeChartTable({ sizeChart }) {
-  if (!sizeChart?.rows?.length || !sizeChart?.measurements?.length) return null
-
-  return (
-    <div className="overflow-x-auto rounded-sm">
-      <table className="w-full text-xs border-collapse">
-        <thead>
-          <tr className="bg-stone-50">
-            <th className="px-4 py-2.5 text-left text-[9px] font-mono tracking-[0.18em] uppercase text-stone-400 border border-stone-100 w-14 sticky left-0 bg-stone-50">
-              Size
-            </th>
-            {sizeChart.measurements.map(m => (
-              <th key={m} className="px-4 py-2.5 text-left text-[9px] font-mono tracking-[0.18em] uppercase text-stone-400 border border-stone-100 min-w-[90px] whitespace-nowrap">
-                {m}
-                {sizeChart.unit && (
-                  <span className="ml-1 normal-case text-stone-300 font-normal tracking-normal">
-                    ({sizeChart.unit})
-                  </span>
-                )}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {sizeChart.rows.map((row, i) => (
-            <tr key={row.size} className={i % 2 === 0 ? 'bg-white' : 'bg-stone-50/40'}>
-              <td className="px-4 py-2.5 border border-stone-100 sticky left-0 bg-inherit">
-                <span className="font-mono text-[10px] font-semibold text-obsidian-900">
-                  {row.size}
-                </span>
-              </td>
-              {sizeChart.measurements.map(m => (
-                <td key={m} className="px-4 py-2.5 border border-stone-100 text-stone-500 font-mono text-[11px]">
-                  {row.values?.[m] || '—'}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
 
 // ─── Review Form ────────────────────────────────────────────────────────────────
 function ReviewForm({ productId, onSuccess }) {
@@ -119,7 +75,6 @@ function ReviewForm({ productId, onSuccess }) {
 // ─── Page ───────────────────────────────────────────────────────────────────────
 export default function ProductDetailPage() {
   const { slug } = useParams()
-  const sizeChartRef = useRef(null)
 
   const [activeImg, setActiveImg] = useState(0)
   const [selectedSize, setSelectedSize] = useState('')
@@ -127,7 +82,7 @@ export default function ProductDetailPage() {
   const [adding, setAdding] = useState(false)
   const [descOpen, setDescOpen] = useState(true)
   const [materialOpen, setMaterialOpen] = useState(false)
-  const [sizeChartOpen, setSizeChartOpen] = useState(false)
+  const [sizeGuideOpen, setSizeGuideOpen] = useState(false)
 
   const { addItem } = useCartStore()
   const { has, toggle } = useWishlistStore()
@@ -162,14 +117,15 @@ export default function ProductDetailPage() {
     (!selectedSize || v.size === selectedSize) && (!selectedColor || v.color === selectedColor)
   )
 
-  const hasSizeChart = !!(product?.sizeChart?.rows?.length)
+  const hasSizeChart = !!(
+    product?.sizeChart?.enabled &&
+    product?.sizeChart?.measurements?.length > 0 &&
+    product?.sizeChart?.rows?.length > 0
+  )
 
-  // "Size Guide" button — open chart accordion and scroll into view
-  const handleOpenSizeChart = () => {
-    setSizeChartOpen(true)
-    setTimeout(() => {
-      sizeChartRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }, 80)
+  // "Size Guide" button — open modal
+  const handleOpenSizeGuide = () => {
+    setSizeGuideOpen(true)
   }
 
   const handleAddToCart = () => {
@@ -199,7 +155,7 @@ export default function ProductDetailPage() {
     </div>
   )
 
-  // Build accordion items dynamically — size chart only shown if product has one
+  // Build accordion items dynamically
   const accordionItems = [
     {
       key: 'description',
@@ -223,26 +179,6 @@ export default function ProductDetailPage() {
         </p>
       ),
     },
-    ...(hasSizeChart ? [{
-      key: 'sizeChart',
-      title: 'Size Chart',
-      icon: <Ruler size={12} className="text-stone-400" />,
-      open: sizeChartOpen,
-      setOpen: setSizeChartOpen,
-      content: (
-        <div className="pb-4 space-y-3">
-          {product.sizeChart.unit && (
-            <p className="text-[10px] font-mono text-stone-400 uppercase tracking-wider">
-              All measurements in {product.sizeChart.unit === 'in' ? 'inches' : 'centimetres'}
-            </p>
-          )}
-          <SizeChartTable sizeChart={product.sizeChart} />
-          <p className="text-[10px] text-stone-400 leading-relaxed">
-            Measurements are approximate. If you're between sizes, we recommend sizing up.
-          </p>
-        </div>
-      ),
-    }] : []),
   ]
 
   return (
@@ -357,17 +293,13 @@ export default function ProductDetailPage() {
                 {hasSizeChart ? (
                   <button
                     type="button"
-                    onClick={handleOpenSizeChart}
+                    onClick={handleOpenSizeGuide}
                     className="flex items-center gap-1.5 text-xs text-stone-400 hover:text-obsidian-900 underline underline-offset-2 transition-colors"
                   >
                     <Ruler size={11} />
                     Size Guide
                   </button>
-                ) : (
-                  <button className="text-xs text-stone-400 hover:text-obsidian-900 underline underline-offset-2 transition-colors">
-                    Size Guide
-                  </button>
-                )}
+                ) : null}
               </div>
               <div className="flex flex-wrap gap-2">
                 {sizes.map(size => {
@@ -507,20 +439,14 @@ export default function ProductDetailPage() {
             </div>
 
             {/* ── Accordion Info ── */}
-            {accordionItems.map(({ key, title, icon, open, setOpen, content }) => (
-              <div key={key} className="border-t border-stone-100" ref={key === 'sizeChart' ? sizeChartRef : undefined}>
+            {accordionItems.map(({ key, title, open, setOpen, content }) => (
+              <div key={key} className="border-t border-stone-100">
                 <button
                   onClick={() => setOpen(o => !o)}
                   className="flex items-center justify-between w-full py-4 group"
                 >
                   <span className="flex items-center gap-2 font-mono text-[11px] tracking-[0.2em] uppercase">
-                    {icon}
                     {title}
-                    {key === 'sizeChart' && (
-                      <span className="normal-case tracking-normal font-sans text-[9px] text-stone-400 border border-stone-200 px-1.5 py-0.5 rounded-sm">
-                        {product.sizeChart.unit}
-                      </span>
-                    )}
                   </span>
                   <ChevronDown
                     size={14}
@@ -627,6 +553,14 @@ export default function ProductDetailPage() {
         )}
 
       </div>
+
+      {/* Size Guide Modal */}
+      <SizeGuideModal
+        isOpen={sizeGuideOpen}
+        onClose={() => setSizeGuideOpen(false)}
+        sizeChart={product?.sizeChart}
+        productName={product?.name}
+      />
     </PageTransition>
   )
 }

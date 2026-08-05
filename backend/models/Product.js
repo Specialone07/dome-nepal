@@ -57,7 +57,53 @@ const productSchema = new mongoose.Schema({
   totalSold: { type: Number, default: 0 },
 
   metaTitle: { type: String, default: '' },
-  metaDescription: { type: String, default: '' }
+  metaDescription: { type: String, default: '' },
+
+  // Size Chart
+  sizeChart: {
+    enabled: {
+      type: Boolean,
+      default: false
+    },
+    unit: {
+      type: String,
+      enum: ['in', 'cm'],
+      default: 'in'
+    },
+    preset: {
+      type: String,
+      enum: ['custom', 'tops', 'bottoms', 'dresses', 'footwear'],
+      default: 'custom'
+    },
+    measurements: [
+      {
+        key: {
+          type: String,
+          required: true,
+          trim: true
+        },
+        label: {
+          type: String,
+          required: true,
+          trim: true
+        }
+      }
+    ],
+    rows: [
+      {
+        size: {
+          type: String,
+          required: true,
+          trim: true
+        },
+        values: {
+          type: Map,
+          of: String,
+          default: {}
+        }
+      }
+    ]
+  }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

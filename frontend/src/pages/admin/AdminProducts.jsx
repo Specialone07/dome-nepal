@@ -1,9 +1,25 @@
 import { useState, useRef, useCallback } from 'react'
 import { motion, AnimatePresence, Reorder } from 'framer-motion'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Edit, Trash2, Search, X, GripVertical, Upload, Crop, Image as ImageIcon, Package, Ruler, ChevronDown, ChevronUp } from 'lucide-react'
-import { productAPI } from '../../services/api'
+import { Plus, Edit, Trash2, Search, X, GripVertical, Upload, Crop, Image as ImageIcon, Package, Ruler, ChevronDown, ChevronUp, Eye, AlertCircle, Loader2 } from 'lucide-react'
+import { productAPI, api } from '../../services/api'
 import { formatPrice } from '../../utils/helpers'
+import { 
+  SIZE_CHART_PRESETS, 
+  DEFAULT_SIZES, 
+  DEFAULT_SIZE_CHART,
+  buildSizeChartRows,
+  createMeasurementKey,
+  validateMeasurementName,
+  validateSizeName,
+  applyPreset,
+  normalizeSizeChartFromAPI,
+  prepareSizeChartForAPI,
+  hasValidSizeChartData,
+  getActiveRows,
+  getMeasurementCount,
+  getActiveSizeCount
+} from '../../utils/sizeChartUtils'
 import toast from 'react-hot-toast'
 import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
@@ -115,7 +131,7 @@ function CropModal({ src, filename, onDone, onSkip }) {
 }
 
 // ─── Drag & Drop Upload Area ────────────────────────────────────────────────────
-function DropzoneArea({ images, setImages, variantColors }) {
+function DropzoneArea({ images, setImages, variantColors, disabled = false }) {
   const inputRef = useRef(null)
   const [isDragging, setIsDragging] = useState(false)
   const [cropQueue, setCropQueue] = useState([])
@@ -132,12 +148,14 @@ function DropzoneArea({ images, setImages, variantColors }) {
   }
 
   const handleDrop = (e) => {
+    if (disabled) return
     e.preventDefault(); setIsDragging(false)
     const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'))
     if (files.length) processFiles(files)
   }
 
   const handleFileInput = (e) => {
+    if (disabled) return
     const files = Array.from(e.target.files)
     if (files.length) processFiles(files)
     e.target.value = ''
@@ -176,18 +194,20 @@ function DropzoneArea({ images, setImages, variantColors }) {
   return (
     <>
       <div
-        onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+        onDragOver={(e) => { if (!disabled) { e.preventDefault(); setIsDragging(true) } }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
-        onClick={() => inputRef.current?.click()}
-        className={`relative border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all duration-200 ${
-          isDragging ? 'border-stone-900 bg-stone-50 scale-[1.01]' : 'border-stone-200 hover:border-stone-400 hover:bg-stone-50/50'
+        onClick={() => !disabled && inputRef.current?.click()}
+        className={`relative border-2 border-dashed rounded-xl p-6 text-center transition-all duration-200 ${
+          disabled ? 'border-stone-200 bg-stone-50 cursor-not-allowed opacity-50' : 
+          isDragging ? 'border-stone-900 bg-stone-50 scale-[1.01] cursor-pointer' : 'border-stone-200 hover:border-stone-400 hover:bg-stone-50/50 cursor-pointer'
         }`}
       >
-        <input ref={inputRef} type="file" multiple accept="image/*" onChange={handleFileInput} className="hidden" />
+        <input ref={inputRef} type="file" multiple accept="image/*" onChange={handleFileInput} className="hidden" disabled={disabled} />
         <Upload size={22} className={`mx-auto mb-2 transition-colors ${isDragging ? 'text-stone-900' : 'text-stone-300'}`} />
         <p className="text-xs text-stone-500 font-medium">
-          {isDragging ? 'Drop to add images' : 'Drag & drop images, or click to browse'}
+          {disabled ? 'Image upload disabled during processing' : 
+          isDragging ? 'Drop to add images' : 'Drag & drop images, or click to browse'}
         </p>
         <p className="text-[10px] text-stone-400 mt-1">PNG, JPG, WEBP — Each image will be cropped</p>
       </div>
@@ -218,8 +238,9 @@ function DropzoneArea({ images, setImages, variantColors }) {
                     </div>
                     <button
                       type="button"
-                      onClick={(e) => { e.stopPropagation(); removeImage(img.id) }}
-                      className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center z-10"
+                      onClick={(e) => { e.stopPropagation(); !disabled && removeImage(img.id) }}
+                      disabled={disabled}
+                      className={`absolute top-1 right-1 transition-opacity bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center z-10 ${disabled ? 'opacity-30 cursor-not-allowed' : 'opacity-0 group-hover:opacity-100'}`}
                     >
                       <X size={8} />
                     </button>
@@ -275,26 +296,34 @@ function buildEmptySizes() {
   return SIZES.reduce((acc, s) => ({ ...acc, [s]: '' }), {})
 }
 
-function VariantBuilder({ colorGroups, setColorGroups, images }) {
+function VariantBuilder({ colorGroups, setColorGroups, images, disabled = false }) {
   const addColorGroup = () => {
+    if (disabled) return
     setColorGroups(prev => [
       ...prev,
       { id: Date.now(), color: '', imageId: '', sizes: buildEmptySizes() },
     ])
   }
 
-  const removeColorGroup = (id) =>
+  const removeColorGroup = (id) => {
+    if (disabled) return
     setColorGroups(prev => prev.filter(g => g.id !== id))
+  }
 
-  const updateGroup = (id, field, value) =>
+  const updateGroup = (id, field, value) => {
+    if (disabled) return
     setColorGroups(prev => prev.map(g => g.id === id ? { ...g, [field]: value } : g))
+  }
 
-  const updateSize = (id, size, stock) =>
+  const updateSize = (id, size, stock) => {
+    if (disabled) return
     setColorGroups(prev =>
       prev.map(g => g.id === id ? { ...g, sizes: { ...g.sizes, [size]: stock } } : g)
     )
+  }
 
-  const toggleSize = (id, size) =>
+  const toggleSize = (id, size) => {
+    if (disabled) return
     setColorGroups(prev =>
       prev.map(g => {
         if (g.id !== id) return g
@@ -304,6 +333,7 @@ function VariantBuilder({ colorGroups, setColorGroups, images }) {
         return { ...g, sizes: { ...g.sizes, [size]: next } }
       })
     )
+  }
 
   const totalStock = colorGroups.reduce((sum, g) =>
     sum + Object.values(g.sizes).reduce((s, v) => s + (v !== '' ? Number(v) : 0), 0), 0)
@@ -320,7 +350,8 @@ function VariantBuilder({ colorGroups, setColorGroups, images }) {
         <button
           type="button"
           onClick={addColorGroup}
-          className="text-[10px] border border-stone-200 hover:border-stone-800 text-stone-500 hover:text-stone-800 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+          disabled={disabled}
+          className="text-[10px] border border-stone-200 hover:border-stone-800 text-stone-500 hover:text-stone-800 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Plus size={10} /> Add Color
         </button>
@@ -374,7 +405,8 @@ function VariantBuilder({ colorGroups, setColorGroups, images }) {
                   <button
                     type="button"
                     onClick={() => removeColorGroup(group.id)}
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-stone-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"
+                    disabled={disabled}
+                    className="w-6 h-6 rounded-full flex items-center justify-center text-stone-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
                   >
                     <X size={11} />
                   </button>
@@ -495,107 +527,260 @@ function inflateToColorGroups(variants) {
 }
 
 // ─── Size Chart ────────────────────────────────────────────────────────────────
-const DEFAULT_MEASUREMENTS = ['Chest', 'Waist', 'Hip', 'Length']
-
-function buildSizeChartRows(measurements) {
-  return SIZES.map(size => ({
-    size,
-    active: ['S', 'M', 'L', 'XL'].includes(size),
-    values: measurements.reduce((acc, m) => ({ ...acc, [m]: '' }), {}),
-  }))
-}
 
 function buildDefaultSizeChart() {
   return {
-    enabled: false,
-    unit: 'in',
-    measurements: [...DEFAULT_MEASUREMENTS],
-    rows: buildSizeChartRows(DEFAULT_MEASUREMENTS),
-  }
+    ...DEFAULT_SIZE_CHART,
+    rows: buildSizeChartRows(DEFAULT_SIZES, [])
+  };
 }
 
 function inflateSizeChart(raw) {
-  if (!raw) return buildDefaultSizeChart()
-  const measurements = raw.measurements || [...DEFAULT_MEASUREMENTS]
+  if (!raw) return buildDefaultSizeChart();
+  
+  const normalized = normalizeSizeChartFromAPI(raw);
+  
+  // Ensure all default sizes exist
+  const allSizes = [...DEFAULT_SIZES];
+  const existingSizes = normalized.rows.map(r => r.size);
+  const missingSizes = allSizes.filter(s => !existingSizes.includes(s));
+  
+  const rows = [
+    ...normalized.rows.map(r => ({
+      ...r,
+      active: true
+    })),
+    ...missingSizes.map(size => ({
+      size,
+      active: false,
+      values: normalized.measurements.reduce((acc, m) => ({ ...acc, [m.key]: '' }), {})
+    }))
+  ];
+  
   return {
-    enabled: true,
-    unit: raw.unit || 'in',
-    measurements,
-    rows: SIZES.map(size => {
-      const existing = (raw.rows || []).find(r => r.size === size)
-      return {
-        size,
-        active: !!existing,
-        values: measurements.reduce((acc, m) => ({ ...acc, [m]: existing?.values?.[m] ?? '' }), {}),
-      }
-    }),
-  }
+    ...normalized,
+    rows
+  };
 }
 
-const PRESET_TEMPLATES = {
-  Tops:     ['Chest', 'Waist', 'Hip', 'Shoulder', 'Sleeve Length'],
-  Bottoms:  ['Waist', 'Hip', 'Inseam', 'Rise', 'Thigh'],
-  Dresses:  ['Chest', 'Waist', 'Hip', 'Length', 'Shoulder'],
-  Footwear: ['UK', 'EU', 'US', 'Foot Length (cm)'],
+// ─── Size Chart Preview Modal ───────────────────────────────────────────────────
+function SizeChartPreview({ sizeChart, onClose }) {
+  const activeRows = getActiveRows(sizeChart);
+  
+  if (!sizeChart || !sizeChart.enabled) return null;
+
+  return (
+    <motion.div
+      className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[60]"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <motion.div
+        className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col"
+        initial={{ scale: 0.9 }}
+        animate={{ scale: 1 }}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
+          <div className="flex items-center gap-2">
+            <Ruler size={15} className="text-stone-400" />
+            <h3 className="text-sm font-semibold text-stone-800">Size Guide Preview</h3>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-stone-100 transition-colors">
+            <X size={16} className="text-stone-400" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5">
+          {sizeChart.unit && (
+            <p className="text-[10px] font-mono text-stone-400 uppercase tracking-wider mb-3">
+              All measurements in {sizeChart.unit === 'in' ? 'inches' : 'centimetres'}
+            </p>
+          )}
+          
+          {activeRows.length > 0 && sizeChart.measurements.length > 0 ? (
+            <div className="overflow-x-auto rounded-xl border border-stone-100">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-stone-50 border-b border-stone-100">
+                    <th className="px-4 py-2.5 text-left text-[9px] font-mono text-stone-400 uppercase tracking-wider w-14 sticky left-0 bg-stone-50">
+                      Size
+                    </th>
+                    {sizeChart.measurements.map(m => (
+                      <th key={m.key} className="px-4 py-2.5 text-left text-[9px] font-mono text-stone-400 uppercase tracking-wider min-w-[90px] whitespace-nowrap">
+                        {m.label}
+                        <span className="ml-1 normal-case text-stone-300 font-normal">({sizeChart.unit})</span>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-50">
+                  {activeRows.map((row, i) => (
+                    <tr key={row.size} className={i % 2 === 0 ? 'bg-white' : 'bg-stone-50/40'}>
+                      <td className="px-4 py-2.5 sticky left-0 bg-inherit">
+                        <span className="font-mono text-[10px] font-semibold text-stone-700">
+                          {row.size}
+                        </span>
+                      </td>
+                      {sizeChart.measurements.map(m => (
+                        <td key={m.key} className="px-4 py-2.5 text-stone-500 font-mono text-[11px]">
+                          {row.values?.[m.key] || '—'}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <AlertCircle size={32} className="text-stone-300 mx-auto mb-3" />
+              <p className="text-sm text-stone-400">No size chart data to display</p>
+            </div>
+          )}
+          
+          <p className="text-[10px] text-stone-400 mt-4 leading-relaxed">
+            Measurements are approximate. If you're between sizes, we recommend sizing up.
+          </p>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
 }
 
-function SizeChartBuilder({ sizeChart, setSizeChart }) {
+function SizeChartBuilder({ sizeChart, setSizeChart, productName = '', disabled = false }) {
   const [open, setOpen] = useState(false)
   const [newMeasurement, setNewMeasurement] = useState('')
+  const [newSize, setNewSize] = useState('')
+  const [showPreview, setShowPreview] = useState(false)
+  const [presetConfirm, setPresetConfirm] = useState(null)
 
   const toggle = () => {
+    if (disabled) return
     setSizeChart(sc => ({ ...sc, enabled: !sc.enabled }))
     if (!sizeChart.enabled) setOpen(true)
   }
 
-  const setUnit = (unit) => setSizeChart(sc => ({ ...sc, unit }))
+  const setUnit = (unit) => {
+    if (disabled) return
+    setSizeChart(sc => ({ ...sc, unit }))
+  }
 
   const addMeasurement = () => {
-    const name = newMeasurement.trim()
-    if (!name) return
-    if (sizeChart.measurements.includes(name)) { toast.error('Measurement already exists'); return }
+    if (disabled) return
+    const validation = validateMeasurementName(newMeasurement, sizeChart.measurements);
+    if (!validation.valid) {
+      toast.error(validation.error);
+      return;
+    }
+    
+    if (getMeasurementCount(sizeChart) >= 10) {
+      toast.error('Maximum 10 measurement columns allowed');
+      return;
+    }
+
     setSizeChart(sc => ({
       ...sc,
-      measurements: [...sc.measurements, name],
-      rows: sc.rows.map(r => ({ ...r, values: { ...r.values, [name]: '' } })),
+      measurements: [...sc.measurements, { key: validation.key, label: validation.label }],
+      rows: sc.rows.map(r => ({ ...r, values: { ...r.values, [validation.key]: '' } })),
     }))
     setNewMeasurement('')
   }
 
-  const removeMeasurement = (m) =>
+  const removeMeasurement = (key) => {
+    if (disabled) return
+    if (getMeasurementCount(sizeChart) <= 1 && sizeChart.enabled) {
+      toast.error('Cannot remove the final measurement column');
+      return;
+    }
+    
     setSizeChart(sc => ({
       ...sc,
-      measurements: sc.measurements.filter(x => x !== m),
-      rows: sc.rows.map(r => { const { [m]: _, ...rest } = r.values; return { ...r, values: rest } }),
-    }))
-
-  const applyTemplate = (key) => {
-    const measurements = PRESET_TEMPLATES[key]
-    setSizeChart(sc => ({
-      ...sc,
-      measurements,
-      rows: sc.rows.map(r => ({
-        ...r,
-        values: measurements.reduce((acc, m) => ({ ...acc, [m]: r.values[m] ?? '' }), {}),
-      })),
+      measurements: sc.measurements.filter(m => m.key !== key),
+      rows: sc.rows.map(r => { 
+        const { [key]: _, ...rest } = r.values; 
+        return { ...r, values: rest } 
+      }),
     }))
   }
 
-  const toggleRow = (size) =>
+  const handlePresetClick = (presetKey) => {
+    if (disabled) return
+    const hasData = getMeasurementCount(sizeChart) > 0 || getActiveSizeCount(sizeChart) > 0;
+    
+    if (hasData) {
+      setPresetConfirm(presetKey);
+    } else {
+      const updated = applyPreset(presetKey, sizeChart);
+      setSizeChart(updated);
+    }
+  }
+
+  const confirmPreset = () => {
+    if (disabled) return
+    if (presetConfirm) {
+      const updated = applyPreset(presetConfirm, sizeChart);
+      setSizeChart(updated);
+      setPresetConfirm(null);
+    }
+  }
+
+  const addSize = () => {
+    if (disabled) return
+    const validation = validateSizeName(newSize, sizeChart.rows);
+    if (!validation.valid) {
+      toast.error(validation.error);
+      return;
+    }
+    
+    if (sizeChart.rows.length >= 20) {
+      toast.error('Maximum 20 sizes allowed');
+      return;
+    }
+
+    setSizeChart(sc => ({
+      ...sc,
+      rows: [
+        ...sc.rows,
+        {
+          size: validation.size,
+          active: true,
+          values: sc.measurements.reduce((acc, m) => ({ ...acc, [m.key]: '' }), {})
+        }
+      ]
+    }))
+    setNewSize('')
+  }
+
+  const removeSize = (size) => {
+    if (disabled) return
+    setSizeChart(sc => ({
+      ...sc,
+      rows: sc.rows.filter(r => r.size !== size)
+    }))
+  }
+
+  const toggleRow = (size) => {
+    if (disabled) return
     setSizeChart(sc => ({
       ...sc,
       rows: sc.rows.map(r => r.size === size ? { ...r, active: !r.active } : r),
     }))
+  }
 
-  const updateCell = (size, m, value) =>
+  const updateCell = (size, key, value) => {
+    if (disabled) return
     setSizeChart(sc => ({
       ...sc,
       rows: sc.rows.map(r =>
-        r.size === size ? { ...r, values: { ...r.values, [m]: value } } : r
+        r.size === size ? { ...r, values: { ...r.values, [key]: value } } : r
       ),
     }))
+  }
 
-  const activeRows = sizeChart.rows.filter(r => r.active)
+  const activeRows = getActiveRows(sizeChart);
+  const measurementCount = getMeasurementCount(sizeChart);
+  const activeSizeCount = getActiveSizeCount(sizeChart);
 
   return (
     <section className="border border-stone-200 rounded-xl overflow-hidden">
@@ -607,23 +792,33 @@ function SizeChartBuilder({ sizeChart, setSizeChart }) {
         <div className="flex items-center gap-2">
           <Ruler size={13} className={sizeChart.enabled ? 'text-stone-300' : 'text-stone-400'} />
           <span className={`text-[10px] font-mono tracking-widest uppercase ${sizeChart.enabled ? 'text-white' : 'text-stone-500'}`}>
-            Size Chart
+            SIZE CHART
           </span>
-          {sizeChart.enabled && activeRows.length > 0 && (
+          {sizeChart.enabled && (activeSizeCount > 0 || measurementCount > 0) && (
             <span className="bg-white/20 text-white text-[9px] font-mono px-2 py-0.5 rounded-full">
-              {activeRows.length} sizes · {sizeChart.measurements.length} measurements
+              {activeSizeCount} sizes · {measurementCount} measurements
             </span>
           )}
         </div>
         <div className="flex items-center gap-2">
           {sizeChart.enabled && (
-            <button
-              type="button"
-              onClick={e => { e.stopPropagation(); setOpen(o => !o) }}
-              className="text-stone-300 hover:text-white transition-colors p-0.5"
-            >
-              {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); setShowPreview(true) }}
+                className="text-stone-300 hover:text-white transition-colors p-0.5"
+                title="Preview"
+              >
+                <Eye size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); setOpen(o => !o) }}
+                className="text-stone-300 hover:text-white transition-colors p-0.5"
+              >
+                {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+            </>
           )}
           <div className={`w-8 h-4 rounded-full relative transition-colors pointer-events-none ${sizeChart.enabled ? 'bg-white/30' : 'bg-stone-200'}`}>
             <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow-sm transition-all ${sizeChart.enabled ? 'left-4' : 'left-0.5'}`} />
@@ -647,7 +842,7 @@ function SizeChartBuilder({ sizeChart, setSizeChart }) {
               {/* Unit + Presets */}
               <div className="flex items-start gap-4 flex-wrap">
                 <div>
-                  <p className="text-[9px] font-mono text-stone-400 uppercase tracking-wider mb-1.5">Unit</p>
+                  <p className="text-[9px] font-mono text-stone-400 uppercase tracking-wider mb-1.5">UNIT</p>
                   <div className="flex gap-1">
                     {['in', 'cm'].map(u => (
                       <button key={u} type="button" onClick={() => setUnit(u)}
@@ -658,11 +853,11 @@ function SizeChartBuilder({ sizeChart, setSizeChart }) {
                   </div>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[9px] font-mono text-stone-400 uppercase tracking-wider mb-1.5">Quick presets</p>
+                  <p className="text-[9px] font-mono text-stone-400 uppercase tracking-wider mb-1.5">QUICK PRESETS</p>
                   <div className="flex gap-1 flex-wrap">
-                    {Object.keys(PRESET_TEMPLATES).map(key => (
-                      <button key={key} type="button" onClick={() => applyTemplate(key)}
-                        className="px-2.5 py-1.5 rounded-lg text-[10px] border border-stone-200 text-stone-500 hover:border-stone-800 hover:text-stone-800 transition-colors">
+                    {Object.keys(SIZE_CHART_PRESETS).map(key => (
+                      <button key={key} type="button" onClick={() => handlePresetClick(key)}
+                        className="px-2.5 py-1.5 rounded-lg text-[10px] border border-stone-200 text-stone-500 hover:border-stone-800 hover:text-stone-800 transition-colors capitalize">
                         {key}
                       </button>
                     ))}
@@ -672,12 +867,12 @@ function SizeChartBuilder({ sizeChart, setSizeChart }) {
 
               {/* Measurement columns */}
               <div>
-                <p className="text-[9px] font-mono text-stone-400 uppercase tracking-wider mb-2">Measurement columns</p>
+                <p className="text-[9px] font-mono text-stone-400 uppercase tracking-wider mb-2">MEASUREMENT COLUMNS</p>
                 <div className="flex gap-1.5 flex-wrap items-center">
                   {sizeChart.measurements.map(m => (
-                    <span key={m} className="flex items-center gap-1 bg-stone-100 text-stone-700 text-[10px] font-mono px-2 py-1 rounded-lg">
-                      {m}
-                      <button type="button" onClick={() => removeMeasurement(m)}
+                    <span key={m.key} className="flex items-center gap-1 bg-stone-100 text-stone-700 text-[10px] font-mono px-2 py-1 rounded-lg">
+                      {m.label}
+                      <button type="button" onClick={() => removeMeasurement(m.key)}
                         className="text-stone-400 hover:text-red-500 transition-colors leading-none">
                         <X size={9} />
                       </button>
@@ -701,14 +896,40 @@ function SizeChartBuilder({ sizeChart, setSizeChart }) {
 
               {/* Size row toggles */}
               <div>
-                <p className="text-[9px] font-mono text-stone-400 uppercase tracking-wider mb-2">Sizes in chart</p>
-                <div className="flex gap-1.5 flex-wrap">
+                <p className="text-[9px] font-mono text-stone-400 uppercase tracking-wider mb-2">SIZES IN CHART</p>
+                <div className="flex gap-1.5 flex-wrap items-center">
                   {sizeChart.rows.map(row => (
-                    <button key={row.size} type="button" onClick={() => toggleRow(row.size)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-mono border transition-all ${row.active ? 'bg-stone-900 text-white border-stone-900' : 'border-stone-200 text-stone-400 hover:border-stone-400'}`}>
-                      {row.size}
-                    </button>
+                    <span key={row.size} className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => toggleRow(row.size)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-mono border transition-all ${row.active ? 'bg-stone-900 text-white border-stone-900' : 'border-stone-200 text-stone-400 hover:border-stone-400'}`}>
+                        {row.size}
+                      </button>
+                      {row.size && !DEFAULT_SIZES.includes(row.size) && (
+                        <button
+                          type="button"
+                          onClick={() => removeSize(row.size)}
+                          className="text-stone-400 hover:text-red-500 transition-colors leading-none"
+                        >
+                          <X size={9} />
+                        </button>
+                      )}
+                    </span>
                   ))}
+                  <div className="flex items-center gap-1">
+                    <input
+                      value={newSize}
+                      onChange={e => setNewSize(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSize() } }}
+                      placeholder="Custom size…"
+                      className="border border-dashed border-stone-300 rounded-lg px-2.5 py-1 text-[10px] outline-none focus:border-stone-600 w-28 transition-colors"
+                    />
+                    <button type="button" onClick={addSize}
+                      className="w-6 h-6 rounded-lg bg-stone-900 text-white flex items-center justify-center hover:bg-stone-700 transition-colors flex-shrink-0">
+                      <Plus size={10} />
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -719,11 +940,11 @@ function SizeChartBuilder({ sizeChart, setSizeChart }) {
                     <thead>
                       <tr className="bg-stone-50 border-b border-stone-100">
                         <th className="px-3 py-2.5 text-left text-[9px] font-mono text-stone-400 uppercase tracking-wider w-12 sticky left-0 bg-stone-50">
-                          Size
+                          SIZE
                         </th>
                         {sizeChart.measurements.map(m => (
-                          <th key={m} className="px-3 py-2.5 text-left text-[9px] font-mono text-stone-400 uppercase tracking-wider min-w-[88px] whitespace-nowrap">
-                            {m}
+                          <th key={m.key} className="px-3 py-2.5 text-left text-[9px] font-mono text-stone-400 uppercase tracking-wider min-w-[88px] whitespace-nowrap">
+                            {m.label}
                             <span className="ml-1 normal-case text-stone-300 font-normal">({sizeChart.unit})</span>
                           </th>
                         ))}
@@ -738,11 +959,11 @@ function SizeChartBuilder({ sizeChart, setSizeChart }) {
                             </span>
                           </td>
                           {sizeChart.measurements.map(m => (
-                            <td key={m} className="px-2 py-1.5">
+                            <td key={m.key} className="px-2 py-1.5">
                               <input
                                 type="text"
-                                value={row.values[m] ?? ''}
-                                onChange={e => updateCell(row.size, m, e.target.value)}
+                                value={row.values?.[m.key] ?? ''}
+                                onChange={e => updateCell(row.size, m.key, e.target.value)}
                                 placeholder="—"
                                 className="w-full border border-stone-200 rounded-lg px-2.5 py-1.5 text-xs text-center outline-none focus:border-stone-800 transition-colors bg-white"
                               />
@@ -760,9 +981,58 @@ function SizeChartBuilder({ sizeChart, setSizeChart }) {
               )}
 
               <p className="text-[9px] text-stone-300 font-mono">
-                Leave cells blank to hide them. Chart is serialized as JSON on submit.
+                Leave cells blank to hide them. Size chart is saved with the product.
               </p>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Preview Modal */}
+      <AnimatePresence>
+        {showPreview && (
+          <SizeChartPreview sizeChart={sizeChart} onClose={() => setShowPreview(false)} />
+        )}
+      </AnimatePresence>
+
+      {/* Preset Confirmation Modal */}
+      <AnimatePresence>
+        {presetConfirm && (
+          <motion.div
+            className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[65]"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="bg-white rounded-xl shadow-2xl w-full max-w-md p-5"
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+            >
+              <div className="flex items-start gap-3 mb-4">
+                <AlertCircle size={20} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-sm font-semibold text-stone-800 mb-1">Apply Preset?</h4>
+                  <p className="text-xs text-stone-500">
+                    This will replace your current measurement columns. Existing measurement values will be preserved where possible.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setPresetConfirm(null)}
+                  className="flex-1 py-2 text-xs border border-stone-200 rounded-lg text-stone-600 hover:bg-stone-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmPreset}
+                  className="flex-1 py-2 text-xs bg-stone-900 text-white rounded-lg hover:bg-stone-800 transition-colors"
+                >
+                  Apply {presetConfirm}
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -912,19 +1182,16 @@ function ProductFormModal({ product, onClose }) {
     product?.sizeChart ? inflateSizeChart(product.sizeChart) : buildDefaultSizeChart()
   )
 
-  const mutation = useMutation({
-    mutationFn: (formData) =>
-      isEdit ? productAPI.update(product._id, formData) : productAPI.create(formData),
-    onSuccess: () => {
-      qc.invalidateQueries(['admin-products'])
-      toast.success(isEdit ? 'Updated!' : 'Created!')
-      onClose()
-    },
-    onError: err => toast.error(err?.response?.data?.message || 'Failed'),
-  })
+  // Loading states
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 })
+  const [submitStatus, setSubmitStatus] = useState('') // 'uploading', 'creating', 'updating', ''
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
+
+    // Prevent duplicate submissions
+    if (isSubmitting) return
 
     // Validate color groups
     for (const group of colorGroups) {
@@ -955,28 +1222,122 @@ function ProductFormModal({ product, onClose }) {
 
     const flatVariants = flattenColorGroups(colorGroups)
 
-    const formData = new FormData()
-    Object.entries(form).forEach(([k, v]) => {
-      if (typeof v === 'object') return
-      formData.append(k, v)
-    })
-    formData.append('variants', JSON.stringify(flatVariants))
+    // Count new images to upload
+    const newImages = images.filter(img => img.file && !img.isExisting)
+    const totalImagesToUpload = newImages.length
 
-    // Size chart — only send if enabled and has data
-    if (sizeChart.enabled) {
-      const chartPayload = {
-        unit: sizeChart.unit,
-        measurements: sizeChart.measurements,
-        rows: sizeChart.rows
-          .filter(r => r.active)
-          .map(r => ({ size: r.size, values: r.values })),
+    try {
+      setIsSubmitting(true)
+      
+      // Step 1: Upload images if there are any new ones
+      if (totalImagesToUpload > 0) {
+        setSubmitStatus('uploading')
+        setUploadProgress({ current: 0, total: totalImagesToUpload })
+
+        const uploadFormData = new FormData()
+        newImages.forEach(img => {
+          if (img.file) {
+            uploadFormData.append('images', img.file)
+          }
+        })
+
+        console.log(`📤 Starting upload of ${totalImagesToUpload} images...`)
+        
+        const uploadResponse = await api.post('/upload', uploadFormData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          onUploadProgress: (progressEvent) => {
+            const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+            console.log(`📊 Upload progress: ${progress}%`)
+          }
+        })
+
+        console.log('✅ Images uploaded successfully:', uploadResponse.data)
+
+        // Update images with uploaded URLs
+        const uploadedUrls = uploadResponse.data.data || uploadResponse.data
+        const updatedImages = [...images]
+        let urlIndex = 0
+        
+        updatedImages.forEach((img, index) => {
+          if (img.file && !img.isExisting && uploadedUrls[urlIndex]) {
+            updatedImages[index] = {
+              ...img,
+              preview: uploadedUrls[urlIndex].url || uploadedUrls[urlIndex],
+              file: null,
+              isExisting: true
+            }
+            urlIndex++
+          }
+        })
+        
+        setImages(updatedImages)
+        setUploadProgress({ current: totalImagesToUpload, total: totalImagesToUpload })
       }
-      formData.append('sizeChart', JSON.stringify(chartPayload))
+
+      // Step 2: Prepare product data with final image URLs
+      setSubmitStatus(isEdit ? 'updating' : 'creating')
+      
+      const formData = new FormData()
+      Object.entries(form).forEach(([k, v]) => {
+        if (typeof v === 'object') return
+        formData.append(k, v)
+      })
+      formData.append('variants', JSON.stringify(flatVariants))
+
+      // Size chart — use utility function to prepare for API
+      const chartPayload = prepareSizeChartForAPI(sizeChart)
+      if (chartPayload.enabled) {
+        formData.append('sizeChart', JSON.stringify(chartPayload))
+      }
+
+      // Add image URLs instead of files (since they're already uploaded)
+      // Only send images if there were new uploads or if it's a create operation
+      let finalImages = []
+      if (totalImagesToUpload > 0 || !isEdit) {
+        finalImages = images.map(img => ({
+          url: img.preview,
+          publicId: img.publicId || '',
+          alt: form.name || product?.name || ''
+        }))
+        formData.append('images', JSON.stringify(finalImages))
+      }
+
+      console.log(`📤 ${isEdit ? 'Updating' : 'Creating'} product with ${finalImages.length} images...`)
+
+      // Step 3: Send product create/update request
+      const productResponse = isEdit 
+        ? await productAPI.update(product._id, formData)
+        : await productAPI.create(formData)
+
+      console.log('✅ Product operation successful:', productResponse.data)
+
+      // Step 4: Success - refresh and close
+      qc.invalidateQueries(['admin-products'])
+      toast.success(isEdit ? 'Product updated successfully!' : 'Product created successfully!')
+      onClose()
+
+    } catch (error) {
+      console.error('❌ Error during product operation:', error)
+      
+      // Handle different error types
+      if (error.response) {
+        // Backend error
+        const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Operation failed'
+        toast.error(errorMessage)
+      } else if (error.request) {
+        // Network error
+        toast.error('Network error. Please check your connection and try again.')
+      } else {
+        // Other error
+        toast.error(error.message || 'An unexpected error occurred')
+      }
+      
+      // Keep modal open and preserve form data for retry
+    } finally {
+      setIsSubmitting(false)
+      setSubmitStatus('')
+      setUploadProgress({ current: 0, total: 0 })
     }
-
-    images.forEach(img => { if (img.file) formData.append('images', img.file) })
-
-    mutation.mutate(formData)
   }
 
   return (
@@ -996,10 +1357,38 @@ function ProductFormModal({ product, onClose }) {
               {isEdit ? `ID: ${product._id}` : 'Fill in product details below'}
             </p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-stone-100 transition-colors">
+          <button 
+            onClick={onClose} 
+            disabled={isSubmitting}
+            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-stone-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             <X size={15} className="text-stone-400" />
           </button>
         </div>
+
+        {/* LOADING OVERLAY */}
+        <AnimatePresence>
+          {isSubmitting && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-white/90 backdrop-blur-sm z-20 flex flex-col items-center justify-center"
+            >
+              <Loader2 size={32} className="animate-spin text-stone-900 mb-4" />
+              <p className="text-sm font-medium text-stone-900 mb-2">
+                {submitStatus === 'uploading' && 'Uploading images...'}
+                {submitStatus === 'creating' && 'Creating product...'}
+                {submitStatus === 'updating' && 'Updating product...'}
+              </p>
+              {submitStatus === 'uploading' && uploadProgress.total > 0 && (
+                <p className="text-xs text-stone-500 font-mono">
+                  {uploadProgress.current} of {uploadProgress.total} images
+                </p>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
 
@@ -1010,6 +1399,7 @@ function ProductFormModal({ product, onClose }) {
               images={images}
               setImages={setImages}
               variantColors={colorGroups.map(g => g.color).filter(Boolean)}
+              disabled={isSubmitting}
             />
           </section>
 
@@ -1020,34 +1410,39 @@ function ProductFormModal({ product, onClose }) {
               placeholder="Product Name *"
               value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-              className="w-full border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-stone-800 transition-colors"
+              className="w-full border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-stone-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               required
+              disabled={isSubmitting}
             />
             <textarea
               placeholder="Description *"
               value={form.description}
               onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-              className="w-full border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-stone-800 transition-colors resize-none h-20"
+              className="w-full border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-stone-800 transition-colors resize-none h-20 disabled:opacity-50 disabled:cursor-not-allowed"
               required
+              disabled={isSubmitting}
             />
             <div className="grid grid-cols-2 gap-3">
               <input
                 type="number" placeholder="Price *"
                 value={form.price}
                 onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
-                className="w-full border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-stone-800 transition-colors"
+                className="w-full border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-stone-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isSubmitting}
               />
               <input
                 type="number" placeholder="Compare Price"
                 value={form.comparePrice}
                 onChange={e => setForm(f => ({ ...f, comparePrice: e.target.value }))}
-                className="w-full border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-stone-800 transition-colors"
+                className="w-full border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-stone-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isSubmitting}
               />
             </div>
             <select
               value={form.category}
               onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-              className="w-full border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-stone-800 transition-colors bg-white"
+              className="w-full border border-stone-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-stone-800 transition-colors bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isSubmitting}
             >
               {['tops', 'bottoms', 'outerwear', 'dresses', 'accessories', 'footwear', 'activewear'].map(c => (
                 <option key={c} value={c} className="capitalize">{c.charAt(0).toUpperCase() + c.slice(1)}</option>
@@ -1060,10 +1455,11 @@ function ProductFormModal({ product, onClose }) {
             colorGroups={colorGroups}
             setColorGroups={setColorGroups}
             images={images}
+            disabled={isSubmitting}
           />
 
           {/* ── Size Chart ── */}
-          <SizeChartBuilder sizeChart={sizeChart} setSizeChart={setSizeChart} />
+          <SizeChartBuilder sizeChart={sizeChart} setSizeChart={setSizeChart} disabled={isSubmitting} />
 
           {/* ── Flags ── */}
           <section className="flex gap-6">
@@ -1071,9 +1467,9 @@ function ProductFormModal({ product, onClose }) {
               { key: 'isFeatured', label: 'Featured', color: 'bg-amber-400' },
               { key: 'isNew', label: 'New Arrival', color: 'bg-blue-500' },
             ].map(({ key, label, color }) => (
-              <label key={key} className="flex items-center gap-2 cursor-pointer group">
+              <label key={key} className={`flex items-center gap-2 cursor-pointer group ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}>
                 <div
-                  onClick={() => setForm(f => ({ ...f, [key]: !f[key] }))}
+                  onClick={() => !isSubmitting && setForm(f => ({ ...f, [key]: !f[key] }))}
                   className={`w-9 h-5 rounded-full transition-all duration-200 relative ${form[key] ? color : 'bg-stone-200'}`}
                 >
                   <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-200 ${form[key] ? 'left-4' : 'left-0.5'}`} />
@@ -1085,14 +1481,21 @@ function ProductFormModal({ product, onClose }) {
 
           {/* ── Actions ── */}
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose}
-              className="flex-1 py-2.5 text-sm border border-stone-200 rounded-xl text-stone-600 hover:bg-stone-50 transition-colors">
+            <button 
+              type="button" 
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="flex-1 py-2.5 text-sm border border-stone-200 rounded-xl text-stone-600 hover:bg-stone-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               Cancel
             </button>
-            <button type="submit"
-              className="flex-1 py-2.5 text-sm bg-stone-900 text-white rounded-xl hover:bg-stone-800 transition-colors disabled:opacity-50"
-              disabled={mutation.isPending}>
-              {mutation.isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Product'}
+            <button 
+              type="submit"
+              className="flex-1 py-2.5 text-sm bg-stone-900 text-white rounded-xl hover:bg-stone-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              disabled={isSubmitting}
+            >
+              {isSubmitting && <Loader2 size={16} className="animate-spin" />}
+              {isSubmitting ? 'Processing...' : isEdit ? 'Save Changes' : 'Create Product'}
             </button>
           </div>
         </form>
