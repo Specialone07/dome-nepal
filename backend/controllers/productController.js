@@ -333,7 +333,8 @@ const createProduct = asyncHandler(async (req, res) => {
           // Original flow: images uploaded as files
           data.images = req.files.map(file => ({
             url: file.path || file.secure_url || '',
-            publicId: file.filename || file.public_id || ''
+            publicId: file.filename || file.public_id || '',
+            alt: data.name || ''
           }));
         } else {
           data.images = [];
@@ -344,7 +345,8 @@ const createProduct = asyncHandler(async (req, res) => {
         if (req.files && req.files.length > 0) {
           data.images = req.files.map(file => ({
             url: file.path || file.secure_url || '',
-            publicId: file.filename || file.public_id || ''
+            publicId: file.filename || file.public_id || '',
+            alt: data.name || ''
           }));
         } else {
           data.images = [];
@@ -354,7 +356,8 @@ const createProduct = asyncHandler(async (req, res) => {
       // Original flow: images uploaded as files
       data.images = req.files.map(file => ({
         url: file.path || file.secure_url || '',
-        publicId: file.filename || file.public_id || ''
+        publicId: file.filename || file.public_id || '',
+        alt: data.name || ''
       }));
     } else {
       data.images = [];
@@ -538,13 +541,15 @@ const updateProduct = asyncHandler(async (req, res) => {
         
         if (Array.isArray(parsedImages) && parsedImages.length > 0) {
           // Images were pre-uploaded and sent as JSON
-          // Delete old images from cloudinary
-          for (const img of existingProduct.images) {
-            if (img?.publicId && cloudinary?.uploader?.destroy) {
-              try {
-                await cloudinary.uploader.destroy(img.publicId);
-              } catch (err) {
-                console.log("Cloudinary delete failed:", err.message);
+          // Only delete old images if new images are being sent
+          if (parsedImages.length > 0) {
+            for (const img of existingProduct.images) {
+              if (img?.publicId && cloudinary?.uploader?.destroy) {
+                try {
+                  await cloudinary.uploader.destroy(img.publicId);
+                } catch (err) {
+                  console.log("Cloudinary delete failed:", err.message);
+                }
               }
             }
           }

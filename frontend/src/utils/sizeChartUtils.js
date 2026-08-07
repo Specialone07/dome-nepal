@@ -76,7 +76,10 @@ export function validateSizeName(size, existingSizes) {
   const trimmed = size.trim();
   if (!trimmed) return { valid: false, error: 'Size cannot be empty' };
   
-  const exists = existingSizes.some(s => s.toLowerCase() === trimmed.toLowerCase());
+  const exists = existingSizes.some(s => {
+    const existingSize = typeof s === 'string' ? s : s.size;
+    return existingSize?.toLowerCase() === trimmed.toLowerCase();
+  });
   if (exists) return { valid: false, error: 'Size already exists' };
   
   return { valid: true, size: trimmed };
@@ -122,6 +125,7 @@ export function normalizeSizeChartFromAPI(apiData) {
     measurements: Array.isArray(apiData.measurements) ? apiData.measurements : [],
     rows: Array.isArray(apiData.rows) ? apiData.rows.map(row => ({
       size: row.size,
+      active: true, // All loaded rows should be active
       values: row.values instanceof Map ? Object.fromEntries(row.values) : (row.values || {})
     })) : []
   };

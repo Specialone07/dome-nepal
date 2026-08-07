@@ -44,6 +44,10 @@ export default function App() {
     checkAuth()
   }, [])
 
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [location.pathname])
+
   return (
     <>
       {/* ✅ GLOBAL UI (NOT ROUTE-BOUND) */}

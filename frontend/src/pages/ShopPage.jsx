@@ -58,8 +58,8 @@ export default function ShopPage() {
     minPrice: getParam('minPrice'),
     maxPrice: getParam('maxPrice'),
     sizes: getParam('sizes'),
-    sortBy: 'createdAt',
-    order: 'desc',
+    sortBy: getParam('sortBy'),
+    order: getParam('order'),
     page: 1,
     limit: 16,
     search: getParam('search'),
@@ -68,8 +68,8 @@ export default function ShopPage() {
   })
 
   useEffect(() => {
-    const sort = getParam('sort', 'createdAt:desc')
-    const [sortBy, order] = sort.split(':')
+    const sort = getParam('sort')
+    const [sortBy, order] = sort ? sort.split(':') : ['', '']
     setFilters(f => ({
       ...f,
       category: getParam('category'),
@@ -77,8 +77,8 @@ export default function ShopPage() {
       search: getParam('search'),
       featured: getParam('filter') === 'featured' ? 'true' : '',
       isNew: getParam('filter') === 'new' ? 'true' : '',
-      sortBy: sortBy || 'createdAt',
-      order: order || 'desc',
+      sortBy: sortBy,
+      order: order,
     }))
   }, [searchParams])
 

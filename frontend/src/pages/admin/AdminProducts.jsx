@@ -717,26 +717,39 @@ function SizeChartBuilder({ sizeChart, setSizeChart, productName = '', disabled 
 
   const addSize = () => {
     if (disabled) return
-    const validation = validateSizeName(newSize, sizeChart.rows);
-    if (!validation.valid) {
-      toast.error(validation.error);
-      return;
+    
+    // Split input by comma or space to support multiple sizes
+    const sizesToAdd = newSize.split(/[, ]+/).filter(s => s.trim()).map(s => s.trim())
+    
+    if (sizesToAdd.length === 0) return
+    
+    // Validate each size
+    const validSizes = []
+    for (const size of sizesToAdd) {
+      const validation = validateSizeName(size, sizeChart.rows)
+      if (!validation.valid) {
+        toast.error(`${size}: ${validation.error}`)
+        return
+      }
+      validSizes.push(validation.size)
     }
     
-    if (sizeChart.rows.length >= 20) {
-      toast.error('Maximum 20 sizes allowed');
-      return;
+    // Check total size limit
+    if (sizeChart.rows.length + validSizes.length > 20) {
+      toast.error('Maximum 20 sizes allowed')
+      return
     }
 
+    // Add all valid sizes
     setSizeChart(sc => ({
       ...sc,
       rows: [
         ...sc.rows,
-        {
-          size: validation.size,
+        ...validSizes.map(size => ({
+          size,
           active: true,
-          values: sc.measurements.reduce((acc, m) => ({ ...acc, [m.key]: '' }), {})
-        }
+          values: sizeChart.measurements.reduce((acc, m) => ({ ...acc, [m.key]: '' }), {})
+        }))
       ]
     }))
     setNewSize('')
@@ -912,7 +925,7 @@ function SizeChartBuilder({ sizeChart, setSizeChart, productName = '', disabled 
                       value={newSize}
                       onChange={e => setNewSize(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSize() } }}
-                      placeholder="Custom size…"
+                      placeholder="XL, XXL…"
                       className="border border-dashed border-stone-300 rounded-lg px-2.5 py-1 text-[10px] outline-none focus:border-stone-600 w-28 transition-colors"
                     />
                     <button type="button" onClick={addSize}
@@ -1220,6 +1233,8 @@ function ProductFormModal({ product, onClose }) {
       setIsSubmitting(true)
       
       // Step 1: Upload images if there are any new ones
+      let finalImagesToUse = [...images]
+      
       if (totalImagesToUpload > 0) {
         setSubmitStatus('uploading')
         setUploadProgress({ current: 0, total: totalImagesToUpload })
@@ -1262,6 +1277,7 @@ function ProductFormModal({ product, onClose }) {
         
         setImages(updatedImages)
         setUploadProgress({ current: totalImagesToUpload, total: totalImagesToUpload })
+        finalImagesToUse = updatedImages
       }
 
       // Step 2: Prepare product data with final image URLs
@@ -1281,16 +1297,13 @@ function ProductFormModal({ product, onClose }) {
       }
 
       // Add image URLs instead of files (since they're already uploaded)
-      // Only send images if there were new uploads or if it's a create operation
-      let finalImages = []
-      if (totalImagesToUpload > 0 || !isEdit) {
-        finalImages = images.map(img => ({
-          url: img.preview,
-          publicId: img.publicId || '',
-          alt: form.name || product?.name || ''
-        }))
-        formData.append('images', JSON.stringify(finalImages))
-      }
+      // Always send images to preserve order and ensure consistency
+      const finalImages = finalImagesToUse.map(img => ({
+        url: img.preview,
+        publicId: img.publicId || '',
+        alt: form.name || product?.name || ''
+      }))
+      formData.append('images', JSON.stringify(finalImages))
 
       console.log(`📤 ${isEdit ? 'Updating' : 'Creating'} product with ${finalImages.length} images...`)
 

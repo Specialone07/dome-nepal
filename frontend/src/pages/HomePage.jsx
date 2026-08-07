@@ -58,7 +58,7 @@ function HeroSection() {
             Clothing crafted for those who move between worlds. Premium Himalayan heritage meets contemporary design.
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
-            <Link to="/shop?filter=new">
+            <Link to="/shop">
               <motion.div
                 whileHover={{ scale: 1.03, x: 4 }}
                 whileTap={{ scale: 0.98 }}
@@ -142,7 +142,7 @@ export default function HomePage() {
         <ScrollRevealGroup className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {CATEGORIES.map((cat) => (
             <ScrollRevealItem key={cat.slug}>
-              <Link to={`/shop?category=${cat.slug}`} className="group block">
+              <Link to="/shop" className="group block">
                 <div className="relative overflow-hidden aspect-[3/4] mb-3">
                   <motion.img
                     src={cat.img}
@@ -179,7 +179,7 @@ export default function HomePage() {
                 <p className="section-subtitle">Curated</p>
                 <h2 className="section-title">Featured Pieces</h2>
               </div>
-              <Link to="/shop?filter=featured" className="hidden md:flex items-center gap-2 text-xs tracking-[0.15em] uppercase font-body text-obsidian-900/60 hover:text-obsidian-900 transition-colors group">
+              <Link to="/shop" className="hidden md:flex items-center gap-2 text-xs tracking-[0.15em] uppercase font-body text-obsidian-900/60 hover:text-obsidian-900 transition-colors group">
                 View All <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
               </Link>
             </div>

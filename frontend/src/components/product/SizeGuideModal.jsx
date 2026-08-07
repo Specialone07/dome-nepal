@@ -116,14 +116,19 @@ export default function SizeGuideModal({ isOpen, onClose, sizeChart, productName
 
               {/* Content */}
               <div className="flex-1 overflow-y-auto p-6">
-                {sizeChart.unit && (
-                  <div className="mb-4">
+                <div className="mb-4 flex items-center gap-2 flex-wrap">
+                  {sizeChart.unit && (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 rounded-full text-xs font-mono text-stone-600">
                       <span className="w-1.5 h-1.5 rounded-full bg-stone-400" />
                       All measurements in {sizeChart.unit === 'in' ? 'inches' : 'centimetres'}
                     </span>
-                  </div>
-                )}
+                  )}
+                  {sizeChart.preset && sizeChart.preset !== 'custom' && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-stone-900 rounded-full text-xs font-mono text-white">
+                      {sizeChart.preset.charAt(0).toUpperCase() + sizeChart.preset.slice(1)}
+                    </span>
+                  )}
+                </div>
 
                 {activeRows.length > 0 && sizeChart.measurements.length > 0 ? (
                   <div className="overflow-x-auto -mx-6 px-6">
