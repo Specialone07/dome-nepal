@@ -46,7 +46,7 @@ const getProducts = asyncHandler(async (req, res) => {
 
   // Flags
   if (featured === 'true') filter.isFeatured = true;
-  if (isNew === 'true') filter.isNew = true;
+  if (isNew === 'true') filter.newArrival = true;
 
   // Search
   if (search) {
@@ -146,7 +146,7 @@ const getFeaturedProducts = asyncHandler(async (req, res) => {
 ========================================================= */
 const getNewArrivals = asyncHandler(async (req, res) => {
   const products = await Product.find({
-    isNew: true,
+    newArrival: true,
     isActive: true
   })
     .sort({ createdAt: -1 })
@@ -255,7 +255,7 @@ const createProduct = asyncHandler(async (req, res) => {
     data.comparePrice = data.comparePrice ? Number(data.comparePrice) : 0;
 
     data.isFeatured = data.isFeatured === 'true';
-    data.isNew = data.isNew === 'true';
+    data.newArrival = data.isNew === 'true';
     data.isBestSeller = data.isBestSeller === 'true';
 
     // =========================
@@ -470,7 +470,7 @@ const updateProduct = asyncHandler(async (req, res) => {
     if (data.price) data.price = Number(data.price);
 
     data.isFeatured = data.isFeatured === 'true';
-    data.isNew = data.isNew === 'true';
+    data.newArrival = data.isNew === 'true';
     data.isBestSeller = data.isBestSeller === 'true';
 
     // =========================

@@ -46,7 +46,7 @@ const productSchema = new mongoose.Schema({
   careInstructions: [String],
 
   isFeatured: { type: Boolean, default: false },
-  isNew: { type: Boolean, default: true },
+  newArrival: { type: Boolean, default: true },
   isBestSeller: { type: Boolean, default: false },
   isActive: { type: Boolean, default: true },
 
