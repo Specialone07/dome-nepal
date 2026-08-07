@@ -1280,7 +1280,8 @@ function ProductFormModal({ product, onClose }) {
         finalImagesToUse = updatedImages
       }
 
-      // Step 2: Prepare product data with final image URLs
+     
+    // Step 2: Prepare product data with final image URLs
       setSubmitStatus(isEdit ? 'updating' : 'creating')
       
       const formData = new FormData()
@@ -1290,11 +1291,9 @@ function ProductFormModal({ product, onClose }) {
       })
       formData.append('variants', JSON.stringify(flatVariants))
 
-      // Size chart — use utility function to prepare for API
+      // Size chart — always send, so disabling it actually persists
       const chartPayload = prepareSizeChartForAPI(sizeChart)
-      if (chartPayload.enabled) {
-        formData.append('sizeChart', JSON.stringify(chartPayload))
-      }
+      formData.append('sizeChart', JSON.stringify(chartPayload))
 
       // Add image URLs instead of files (since they're already uploaded)
       // Always send images to preserve order and ensure consistency
