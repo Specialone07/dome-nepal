@@ -13,6 +13,7 @@ import {
   Package,
   ShoppingCart,
   Users,
+  Percent,
   ChevronLeft,
   LogOut,
   Menu
@@ -28,6 +29,7 @@ const NAV = [
   { to: '/admin/products', label: 'Products', Icon: Package },
   { to: '/admin/orders', label: 'Orders', Icon: ShoppingCart },
   { to: '/admin/users', label: 'Users', Icon: Users }
+  ,{ to: '/admin/coupons', label: 'Coupons', Icon: Percent }
 ]
 
 export default function AdminLayout() {
@@ -53,7 +55,7 @@ export default function AdminLayout() {
   const handleLogout = async () => {
     try {
       await authAPI.logout()
-    } catch (err) {}
+    } catch {}
 
     logout()
     navigate('/')

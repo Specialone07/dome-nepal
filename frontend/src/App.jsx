@@ -12,6 +12,10 @@ import ShopPage from './pages/ShopPage'
 import ProductDetailPage from './pages/ProductDetailPage'
 import CheckoutPage from './pages/CheckoutPage'
 import WishlistPage from './pages/WishlistPage'
+import AuthPage from './pages/AuthPage'
+import AccountPage from './pages/AccountPage'
+import OrderDetailPage from './pages/OrderDetailPage'
+import GuestOrdersPage from './pages/GuestOrdersPage'
 
 import AdminLayout from './pages/admin/AdminLayout'
 import AdminDashboard from './pages/admin/AdminDashboard'
@@ -19,8 +23,10 @@ import AdminProducts from './pages/admin/AdminProducts'
 import AdminOrders from './pages/admin/AdminOrders'
 import AdminLogin from './pages/admin/AdminLogin'
 import AdminOrderDetails from './pages/admin/AdminOrderDetails'
+import AdminUsers from './pages/admin/AdminUsers'
+import AdminCoupons from './pages/admin/AdminCoupons'
 
-import { AdminRoute } from './routes/ProtectedRoutes'
+import { AdminRoute, ProtectedRoute } from './routes/ProtectedRoutes'
 import { useAuthStore } from './stores'
 
 // ================= MAIN LAYOUT =================
@@ -72,6 +78,8 @@ export default function App() {
             <Route path="products" element={<AdminProducts />} />
             <Route path="orders" element={<AdminOrders />} />
             <Route path="orders/:id" element={<AdminOrderDetails />} />
+            <Route path="users" element={<AdminUsers />} />
+            <Route path="coupons" element={<AdminCoupons />} />
           </Route>
 
           {/* PUBLIC */}
@@ -80,6 +88,12 @@ export default function App() {
           <Route path="/products/:slug" element={<MainLayout><ProductDetailPage /></MainLayout>} />
           <Route path="/wishlist" element={<MainLayout><WishlistPage /></MainLayout>} />
           <Route path="/checkout" element={<MainLayout><CheckoutPage /></MainLayout>} />
+          <Route path="/login" element={<MainLayout><AuthPage mode="login" /></MainLayout>} />
+          <Route path="/register" element={<MainLayout><AuthPage mode="register" /></MainLayout>} />
+          <Route path="/account" element={<MainLayout><ProtectedRoute><AccountPage /></ProtectedRoute></MainLayout>} />
+          <Route path="/account/orders/:id" element={<MainLayout><ProtectedRoute><OrderDetailPage /></ProtectedRoute></MainLayout>} />
+          <Route path="/orders" element={<MainLayout><GuestOrdersPage /></MainLayout>} />
+          <Route path="/orders/:id" element={<MainLayout><OrderDetailPage /></MainLayout>} />
 
           {/* 404 */}
           <Route

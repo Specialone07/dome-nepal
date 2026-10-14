@@ -18,7 +18,8 @@ router.get('/stats', asyncHandler(async (req, res) => {
     totalOrders, monthOrders, lastMonthOrders,
     totalRevenue, monthRevenue,
     totalProducts, totalUsers, monthUsers,
-    recentOrders, topProducts, ordersByStatus
+    recentOrders, topProducts, ordersByStatus,
+    pendingOrders, guestOrders, unpaidOrders, lowStockProducts, outOfStockProducts
   ] = await Promise.all([
     Order.countDocuments(),
     Order.countDocuments({ createdAt: { $gte: startOfMonth } }),
@@ -37,7 +38,12 @@ router.get('/stats', asyncHandler(async (req, res) => {
     Order.find().sort({ createdAt: -1 }).limit(5).populate('user', 'name email'),
     Product.find({ isActive: true }).sort({ totalSold: -1 }).limit(5)
       .select('name images totalSold price'),
-    Order.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }])
+    Order.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
+    Order.countDocuments({ status: { $in: ['pending', 'processing'] } }),
+    Order.countDocuments({ isGuest: true }),
+    Order.countDocuments({ isPaid: false, status: { $nin: ['cancelled', 'refunded'] } }),
+    Product.countDocuments({ isActive: true, $expr: { $and: [{ $gt: [{ $sum: '$variants.stock' }, 0] }, { $lte: [{ $sum: '$variants.stock' }, 10] }] } }),
+    Product.countDocuments({ isActive: true, variants: { $not: { $elemMatch: { stock: { $gt: 0 } } } } })
   ]);
 
   const revenueByDay = await Order.aggregate([
@@ -64,7 +70,8 @@ router.get('/stats', asyncHandler(async (req, res) => {
       totalRevenue: totalRevenue[0]?.total || 0,
       monthRevenue: monthRevenue[0]?.total || 0,
       totalProducts, totalUsers, monthUsers,
-      recentOrders, topProducts, ordersByStatus, revenueByDay
+      recentOrders, topProducts, ordersByStatus, revenueByDay,
+      pendingOrders, guestOrders, unpaidOrders, lowStockProducts, outOfStockProducts
     }
   });
 }));

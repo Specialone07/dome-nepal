@@ -52,8 +52,15 @@ const optionalAuth = asyncHandler(async (req, res, next) => {
     const decoded = verifyAccessToken(token)
     const user = await User.findById(decoded.id).select('-password -refreshTokens')
     if (user && user.isActive) req.user = user
+    else if (req.cookies?.refreshToken) {
+      res.status(401)
+      throw new Error('Account is unavailable')
+    }
   } catch {
-    // invalid/expired token → just continue as guest, don't throw
+    if (req.cookies?.refreshToken) {
+      res.status(401)
+      throw new Error('Session expired. Please refresh and try again.')
+    }
   }
 
   next()

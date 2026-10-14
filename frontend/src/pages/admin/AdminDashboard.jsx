@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import {
   TrendingUp,
   ShoppingBag,
@@ -160,6 +161,15 @@ export default function AdminDashboard() {
         />
       </div>
 
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          { label: 'Needs fulfilment', value: stats?.pendingOrders, to: '/admin/orders?status=pending', tone: 'text-blue-700 bg-blue-50' },
+          { label: 'Guest orders', value: stats?.guestOrders, to: '/admin/orders', tone: 'text-amber-700 bg-amber-50' },
+          { label: 'Payment pending', value: stats?.unpaidOrders, to: '/admin/orders', tone: 'text-purple-700 bg-purple-50' },
+          { label: 'Low / out of stock', value: (stats?.lowStockProducts || 0) + (stats?.outOfStockProducts || 0), to: '/admin/products', tone: 'text-red-700 bg-red-50' },
+        ].map(item => <Link key={item.label} to={item.to} className={`p-4 flex items-center justify-between hover:-translate-y-0.5 transition-transform ${item.tone}`}><span className="text-xs">{item.label}</span><strong className="font-display text-xl">{item.value || 0}</strong></Link>)}
+      </div>
+
       {/* ================= CONTENT GRID ================= */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -179,9 +189,7 @@ export default function AdminDashboard() {
                 className="flex justify-between py-2 border-b border-stone-50"
               >
                 <div>
-                  <p className="text-xs font-mono">
-                    {order?.orderNumber}
-                  </p>
+                  <Link to={`/admin/orders/${order?._id}`} className="text-xs font-mono hover:text-gold-600">{order?.orderNumber}</Link>
 
                   <p className="text-xs text-stone-400">
                     {getCustomerName(order)}

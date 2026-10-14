@@ -1,335 +1,199 @@
 const asyncHandler = require('express-async-handler');
+const mongoose = require('mongoose');
+const crypto = require('crypto');
 const Order = require('../models/Order');
 const Product = require('../models/Product');
+const Coupon = require('../models/Coupon');
 const { sendOrderNotifications } = require('../services/notificationService');
-const crypto = require('crypto');
 
-/* =========================================================
-   CREATE ORDER
-========================================================= */
+const FREE_SHIPPING_THRESHOLD = 5000;
+const SHIPPING_FEE = 180;
+const STATUSES = ['pending', 'processing', 'shipped', 'out_for_delivery', 'delivered', 'cancelled', 'refunded'];
+const STATUS_TRANSITIONS = {
+  pending: ['processing', 'cancelled'], processing: ['shipped', 'cancelled'],
+  shipped: ['out_for_delivery', 'delivered'], out_for_delivery: ['delivered'],
+  delivered: ['refunded'], cancelled: [], refunded: []
+};
+const fail = (message, statusCode = 400) => Object.assign(new Error(message), { statusCode });
+
+const normalizeItems = (input) => {
+  if (!Array.isArray(input) || !input.length) throw fail('No order items');
+  const grouped = new Map();
+  for (const raw of input) {
+    const item = {
+      product: String(raw.product || ''), size: String(raw.size || '').trim(),
+      color: String(raw.color || '').trim(), quantity: Number(raw.quantity)
+    };
+    if (!mongoose.isValidObjectId(item.product) || !item.size || !item.color || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 20) {
+      throw fail('Invalid product variant or quantity');
+    }
+    const key = `${item.product}:${item.size.toLowerCase()}:${item.color.toLowerCase()}`;
+    const old = grouped.get(key);
+    grouped.set(key, old ? { ...old, quantity: old.quantity + item.quantity } : item);
+  }
+  return [...grouped.values()];
+};
+
+const validateAddress = (address) => {
+  const required = ['name', 'email', 'phone', 'street', 'city', 'state', 'country'];
+  if (!address || required.some(field => !String(address[field] || '').trim())) throw fail('Incomplete shipping details');
+  if (!/^\S+@\S+\.\S+$/.test(address.email)) throw fail('Enter a valid email address');
+  return Object.fromEntries(Object.entries(address).map(([key, value]) => [key, typeof value === 'string' ? value.trim() : value]));
+};
+
+const findCoupon = async (code, subtotal, session) => {
+  if (!code) return null;
+  const now = new Date();
+  const coupon = await Coupon.findOne({ code: String(code).trim().toUpperCase(), isActive: true }).session(session || null);
+  if (!coupon || (coupon.startsAt && coupon.startsAt > now) || (coupon.expiresAt && coupon.expiresAt < now)) throw fail('Coupon is invalid or expired');
+  if (coupon.usageLimit > 0 && coupon.usedCount >= coupon.usageLimit) throw fail('Coupon usage limit reached');
+  if (subtotal < coupon.minimumOrder) throw fail(`Minimum order for this coupon is Rs. ${coupon.minimumOrder}`);
+  return coupon;
+};
+
+const buildPricing = async (input, couponCode, session) => {
+  const requested = normalizeItems(input);
+  const ids = [...new Set(requested.map(item => item.product))];
+  const products = await Product.find({ _id: { $in: ids }, isActive: true }).session(session || null);
+  if (products.length !== ids.length) throw fail('One or more products are unavailable');
+  const items = requested.map(item => {
+    const product = products.find(entry => entry._id.toString() === item.product);
+    const variant = product.variants.find(entry => entry.size.toLowerCase() === item.size.toLowerCase() && entry.color.toLowerCase() === item.color.toLowerCase());
+    if (!variant) throw fail(`Variant not found for ${product.name}`);
+    if (variant.stock < item.quantity) throw fail(`Only ${variant.stock} ${product.name} item(s) remain in ${variant.color} / ${variant.size}`, 409);
+    return { product: product._id, name: product.name, image: product.images?.[0]?.url || '', price: product.price, size: variant.size, color: variant.color, quantity: item.quantity };
+  });
+  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const coupon = await findCoupon(couponCode, subtotal, session);
+  const discount = coupon ? coupon.calculateDiscount(subtotal) : 0;
+  const shippingPrice = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE;
+  return { items, subtotal, shippingPrice, taxPrice: 0, discount, totalPrice: subtotal + shippingPrice - discount, coupon };
+};
+
+const quoteOrder = asyncHandler(async (req, res) => {
+  const p = await buildPricing(req.body.items, req.body.couponCode);
+  res.json({ success: true, data: { subtotal: p.subtotal, shippingPrice: p.shippingPrice, taxPrice: p.taxPrice, discount: p.discount, totalPrice: p.totalPrice, couponCode: p.coupon?.code || '' } });
+});
+
 const createOrder = asyncHandler(async (req, res) => {
-  const {
-    items,
-    shippingAddress,
-    couponCode,
-    subtotal,
-    shippingPrice,
-    discount,
-    totalPrice
-  } = req.body;
-
-  // ================= VALIDATION =================
-  if (!items || items.length === 0) {
-    res.status(400);
-    throw new Error('No order items');
-  }
-
-  if (
-    !shippingAddress ||
-    !shippingAddress.name ||
-    !shippingAddress.email ||
-    !shippingAddress.phone ||
-    !shippingAddress.street ||
-    !shippingAddress.city
-  ) {
-    res.status(400);
-    throw new Error('Incomplete shipping details');
-  }
-
-  // ================= FETCH PRODUCTS =================
-  const productIds = items.map(item => item.product);
-  const products = await Product.find({ _id: { $in: productIds } });
-
-  const orderItems = [];
-
-  for (const item of items) {
-    const product = products.find(p => p._id.toString() === item.product);
-
-    if (!product) {
-      res.status(404);
-      throw new Error(`Product not found: ${item.product}`);
-    }
-
-    const variant = product.variants.find(
-      v => v.size === item.size && v.color === item.color
-    );
-
-    if (!variant) {
-      res.status(400);
-      throw new Error(`Variant not found for ${product.name}`);
-    }
-
-    if (variant.stock < item.quantity) {
-      res.status(400);
-      throw new Error(`Insufficient stock for ${product.name}`);
-    }
-
-    const price = variant.price || product.price;
-
-    orderItems.push({
-      product: product._id,
-      name: product.name,
-      image: product.images?.[0]?.url || '',
-      price,
-      size: item.size,
-      color: item.color,
-      quantity: item.quantity,
+  const shippingAddress = validateAddress(req.body.shippingAddress);
+  const paymentMethod = String(req.body.paymentMethod || 'cash_on_delivery');
+  if (paymentMethod !== 'cash_on_delivery') throw fail('This payment method is not available yet');
+  const guestId = req.user ? null : String(req.headers['x-guest-id'] || crypto.randomUUID());
+  const session = await mongoose.startSession();
+  let order;
+  try {
+    await session.withTransaction(async () => {
+      const p = await buildPricing(req.body.items, req.body.couponCode, session);
+      for (const item of p.items) {
+        const result = await Product.updateOne(
+          { _id: item.product },
+          { $inc: { 'variants.$[variant].stock': -item.quantity, totalSold: item.quantity } },
+          { session, arrayFilters: [{ 'variant.size': item.size, 'variant.color': item.color, 'variant.stock': { $gte: item.quantity } }] }
+        );
+        if (!result.modifiedCount) throw fail(`Stock changed for ${item.name}. Please review your bag.`, 409);
+      }
+      [order] = await Order.create([{
+        user: req.user?._id || null, guestId, isGuest: !req.user, items: p.items, shippingAddress, paymentMethod,
+        subtotal: p.subtotal, shippingPrice: p.shippingPrice, taxPrice: p.taxPrice, discount: p.discount,
+        couponCode: p.coupon?.code || '', totalPrice: p.totalPrice, status: 'pending',
+        trackingEvents: [{ status: 'pending', message: 'Order placed successfully', location: 'Online' }]
+      }], { session });
+      if (p.coupon) { p.coupon.usedCount += 1; await p.coupon.save({ session }); }
     });
-  }
-
-  // ================= GUEST LOGIC =================
-  let guestId = null;
-
-  if (!req.user) {
-    guestId = req.headers['x-guest-id'] || crypto.randomUUID();
-  }
-
-  // ================= CREATE ORDER =================
-  const order = await Order.create({
-    user: req.user?._id || null,
-    guestId,
-    isGuest: !req.user,
-    items: orderItems,
-    shippingAddress,
-    paymentMethod: 'cash_on_delivery',
-
-    subtotal,
-    shippingPrice,
-    discount,
-    couponCode,
-    totalPrice,
-
-    status: 'pending',
-    trackingEvents: [
-      {
-        status: 'pending',
-        message: 'Order placed successfully',
-        location: 'Online',
-      },
-    ],
-  });
-
-  // ================= UPDATE STOCK =================
-  for (const item of items) {
-    await Product.updateOne(
-      {
-        _id: item.product,
-        'variants.size': item.size,
-        'variants.color': item.color,
-      },
-      {
-        $inc: {
-          'variants.$.stock': -item.quantity,
-          totalSold: item.quantity,
-        },
-      }
-    );
-  }
-
-  // ================= RESPONSE FIRST =================
-  const response = {
-    success: true,
-    message: 'Order placed successfully',
-    data: { order },
-  };
-
-  if (guestId) response.guestId = guestId;
-
-  res.status(201).json(response);
-
-  // ================= BACKGROUND NOTIFICATIONS =================
-  setImmediate(() => {
-    sendOrderNotifications(order)
-      .then(() => console.log('Notification sent'))
-      .catch(err =>
-        console.error('Notification failed:', err.message)
-      );
-  });
+  } finally { await session.endSession(); }
+  res.status(201).json({ success: true, message: 'Order placed successfully', data: { order }, ...(guestId ? { guestId } : {}) });
+  setImmediate(() => sendOrderNotifications(order).catch(error => console.error('Notification failed:', error.message)));
 });
 
-/* =========================================================
-   GET MY ORDERS
-========================================================= */
 const getMyOrders = asyncHandler(async (req, res) => {
-  const query = req.user
-    ? { user: req.user._id }
-    : { guestId: req.headers['x-guest-id'] };
-
-  if (!req.user && !req.headers['x-guest-id']) {
-    return res.json({ success: true, data: { orders: [] } });
-  }
-
-  const orders = await Order.find(query).sort({ createdAt: -1 });
-
-  res.json({
-    success: true,
-    data: { orders },
-  });
+  const guestId = req.headers['x-guest-id'];
+  if (!req.user && !guestId) return res.json({ success: true, data: { orders: [] } });
+  const orders = await Order.find(req.user ? { user: req.user._id } : { guestId }).sort({ createdAt: -1 });
+  res.json({ success: true, data: { orders } });
 });
 
-/* =========================================================
-   GET SINGLE ORDER
-========================================================= */
 const getOrder = asyncHandler(async (req, res) => {
-  const order = await Order.findById(req.params.id).populate('user', 'name email');
-
-  if (!order) {
-    res.status(404);
-    throw new Error('Order not found');
-  }
-
-  if (req.user) {
-    const ownerId = order.user?._id?.toString();
-    if (ownerId !== req.user._id.toString() && req.user.role !== 'admin') {
-      res.status(403);
-      throw new Error('Not authorized');
-    }
-  } else {
-    const guestId = req.headers['x-guest-id'];
-    if (!guestId || order.guestId !== guestId) {
-      res.status(403);
-      throw new Error('Not authorized');
-    }
-  }
-
-  res.json({
-    success: true,
-    data: { order },
-  });
+  const order = await Order.findById(req.params.id).select('+guestId').populate('user', 'name email');
+  if (!order) throw fail('Order not found', 404);
+  const admin = ['admin', 'superadmin'].includes(req.user?.role);
+  const owner = req.user && order.user?._id?.toString() === req.user._id.toString();
+  const guest = !req.user && req.headers['x-guest-id'] && order.guestId === req.headers['x-guest-id'];
+  if (!admin && !owner && !guest) throw fail('Not authorized', 403);
+  order.guestId = undefined;
+  res.json({ success: true, data: { order } });
 });
 
-/* =========================================================
-   CANCEL ORDER
-========================================================= */
 const cancelOrder = asyncHandler(async (req, res) => {
-  const order = await Order.findById(req.params.id);
-
-  if (!order) {
-    res.status(404);
-    throw new Error('Order not found');
-  }
-
-  if (req.user) {
-    if (order.user?.toString() !== req.user._id.toString()) {
-      res.status(403);
-      throw new Error('Not authorized');
-    }
-  } else {
-    const guestId = req.headers['x-guest-id'];
-    if (!guestId || order.guestId !== guestId) {
-      res.status(403);
-      throw new Error('Not authorized');
-    }
-  }
-
-  if (!['pending', 'processing'].includes(order.status)) {
-    res.status(400);
-    throw new Error('Order cannot be cancelled');
-  }
-
-  order.status = 'cancelled';
-  order.trackingEvents.push({
-    status: 'cancelled',
-    message: 'Cancelled by user',
-  });
-
-  await order.save();
-
-  for (const item of order.items) {
-    await Product.updateOne(
-      {
-        _id: item.product,
-        'variants.size': item.size,
-        'variants.color': item.color,
-      },
-      {
-        $inc: {
-          'variants.$.stock': item.quantity,
-          totalSold: -item.quantity,
-        },
+  const order = await Order.findById(req.params.id).select('+guestId');
+  if (!order) throw fail('Order not found', 404);
+  const owner = req.user && order.user?.toString() === req.user._id.toString();
+  const guest = !req.user && req.headers['x-guest-id'] && order.guestId === req.headers['x-guest-id'];
+  if (!owner && !guest) throw fail('Not authorized', 403);
+  if (!['pending', 'processing'].includes(order.status)) throw fail('Order can no longer be cancelled');
+  const session = await mongoose.startSession();
+  try {
+    await session.withTransaction(async () => {
+      order.status = 'cancelled';
+      order.trackingEvents.push({ status: 'cancelled', message: String(req.body.reason || 'Cancelled by customer').slice(0, 200), actor: req.user?.name || 'Guest customer' });
+      await order.save({ session });
+      for (const item of order.items) {
+        await Product.updateOne({ _id: item.product }, { $inc: { 'variants.$[variant].stock': item.quantity, totalSold: -item.quantity } }, { session, arrayFilters: [{ 'variant.size': item.size, 'variant.color': item.color }] });
       }
-    );
-  }
-
-  res.json({
-    success: true,
-    data: { order },
-  });
+    });
+  } finally { await session.endSession(); }
+  order.guestId = undefined;
+  res.json({ success: true, data: { order } });
 });
 
-/* =========================================================
-   ADMIN - ALL ORDERS
-========================================================= */
 const getAllOrders = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 20, status } = req.query;
-
+  const { page = 1, limit = 20, status, search } = req.query;
   const query = status ? { status } : {};
-
-  const skip = (page - 1) * limit;
-
+  if (search) {
+    const value = String(search).trim();
+    query.$or = ['orderNumber', 'shippingAddress.name', 'shippingAddress.email', 'shippingAddress.phone'].map(field => ({ [field]: { $regex: value, $options: 'i' } }));
+  }
+  const skip = (Number(page) - 1) * Number(limit);
   const [orders, total] = await Promise.all([
-    Order.find(query)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(Number(limit))
-      .populate('user', 'name email'),
-
+    Order.find(query).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)).populate('user', 'name email'),
     Order.countDocuments(query)
   ]);
-
-  res.json({
-    success: true,
-    data: {
-      orders,
-      total
-    }
-  });
+  res.json({ success: true, data: { orders, total, pages: Math.ceil(total / Number(limit)) } });
 });
-/* =========================================================
-   ADMIN - UPDATE STATUS
-========================================================= */
+
 const updateOrderStatus = asyncHandler(async (req, res) => {
-  const { status, message, location, trackingNumber } = req.body;
-
+  const { status, message, location, trackingNumber, notes } = req.body;
+  if (!STATUSES.includes(status)) throw fail('Invalid order status');
   const order = await Order.findById(req.params.id);
-
-  if (!order) {
-    res.status(404);
-    throw new Error('Order not found');
+  if (!order) throw fail('Order not found', 404);
+  const previousStatus = order.status;
+  if (status !== previousStatus && !STATUS_TRANSITIONS[previousStatus]?.includes(status)) {
+    throw fail(`Order cannot move from ${previousStatus} to ${status}`);
   }
-
   order.status = status;
-  order.trackingEvents.push({
-    status,
-    message: message || `Order ${status}`,
-    location: location || '',
-  });
-
-  if (trackingNumber) order.trackingNumber = trackingNumber;
-
+  if (status !== previousStatus || message || location) {
+    order.trackingEvents.push({ status, message: String(message || `Order ${status}`).slice(0, 200), location: String(location || '').slice(0, 120), actor: req.user?.name || 'Admin' });
+  }
+  if (trackingNumber !== undefined) order.trackingNumber = String(trackingNumber).trim();
+  if (notes !== undefined) order.notes = String(notes).slice(0, 1000);
   if (status === 'delivered') {
-    order.isDelivered = true;
-    order.deliveredAt = new Date();
+    order.isDelivered = true; order.deliveredAt ||= new Date();
+    if (order.paymentMethod === 'cash_on_delivery') { order.isPaid = true; order.paidAt ||= new Date(); }
   }
-
-  if (status === 'delivered' && order.paymentMethod === 'cash_on_delivery') {
-    order.isPaid = true;
-    order.paidAt = new Date();
+  if (status === 'cancelled' && previousStatus !== 'cancelled') {
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        await order.save({ session });
+        for (const item of order.items) {
+          await Product.updateOne({ _id: item.product }, { $inc: { 'variants.$[variant].stock': item.quantity, totalSold: -item.quantity } }, { session, arrayFilters: [{ 'variant.size': item.size, 'variant.color': item.color }] });
+        }
+      });
+    } finally { await session.endSession(); }
+  } else {
+    await order.save();
   }
-
-  await order.save();
-
-  res.json({
-    success: true,
-    data: { order },
-  });
+  res.json({ success: true, data: { order } });
 });
 
-module.exports = {
-  createOrder,
-  getMyOrders,
-  getOrder,
-  cancelOrder,
-  getAllOrders,
-  updateOrderStatus,
-};
+module.exports = { createOrder, quoteOrder, getMyOrders, getOrder, cancelOrder, getAllOrders, updateOrderStatus };

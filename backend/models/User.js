@@ -8,7 +8,8 @@ const addressSchema = new mongoose.Schema({
   street:    { type: String, required: true },
   city:      { type: String, required: true },
   state:     { type: String, required: true },
-  zip:       { type: String, required: true },
+  zip:       { type: String, default: '' },
+  phone:     { type: String, default: '' },
   country:   { type: String, required: true, default: 'Nepal' },
   isDefault: { type: Boolean, default: false },
 })

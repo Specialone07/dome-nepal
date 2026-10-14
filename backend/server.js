@@ -23,8 +23,10 @@ const reviewRoutes = require('./routes/reviewRoutes');
 const wishlistRoutes = require('./routes/wishlistRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const couponRoutes = require('./routes/couponRoutes');
 
 const { errorHandler, notFound } = require('./middleware/errorMiddleware');
+const migrateLegacyVariants = require('./utils/migrateLegacyVariants');
 
 // ── APP INIT ─────────────────────────────────
 const app = express();
@@ -34,7 +36,8 @@ app.use(helmet());
 
 const allowedOrigins = [
   'http://localhost:5173',
-  'https://dome-nepal-umber.vercel.app'
+  'https://dome-nepal-umber.vercel.app',
+  ...(process.env.FRONTEND_URL || '').split(',').map(value => value.trim()).filter(Boolean)
 ];
 
 app.use(cors({
@@ -47,6 +50,14 @@ app.use(cors({
   },
   credentials: true
 }));
+
+app.use((req, res, next) => {
+  const origin = req.get('origin');
+  if (origin && !['GET', 'HEAD', 'OPTIONS'].includes(req.method) && !allowedOrigins.includes(origin)) {
+    return res.status(403).json({ success: false, message: 'Request origin not allowed' });
+  }
+  next();
+});
 
 // ── RATE LIMITING ────────────────────────────
 const generalLimiter = rateLimit({
@@ -82,6 +93,7 @@ app.use('/api/wishlist', wishlistRoutes);
 
 app.use('/api/users', protect, userRoutes);
 app.use('/api/admin', protect, adminOnly, adminRoutes);
+app.use('/api/coupons', couponRoutes);
 app.use('/api/upload', protect, adminOnly, uploadRoutes);
 
 // ── HEALTH CHECK ─────────────────────────────
@@ -104,7 +116,9 @@ mongoose.connect(process.env.MONGO_URI, {
   serverSelectionTimeoutMS: 10000,
   family: 4,
 })
-.then(() => {
+.then(async () => {
+  const migratedProducts = await migrateLegacyVariants();
+  if (migratedProducts) console.log(`Migrated ${migratedProducts} product(s) to flat variants`);
   console.log('✅ MongoDB Connected');
 
   app.listen(PORT, () => {

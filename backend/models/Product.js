@@ -1,12 +1,12 @@
 const mongoose = require('mongoose');
 
 const variantSchema = new mongoose.Schema({
-  size: { type: String, required: true },
+  size: { type: String, required: true, trim: true },
   color: { type: String, required: true },
   colorHex: { type: String, default: '#000000' },
   stock: { type: Number, required: true, min: 0, default: 0 },
   sku: { type: String, required: true } // ❌ removed unique
-});
+}, { _id: true });
 
 const productSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true, maxlength: 200 },
@@ -31,15 +31,7 @@ const productSchema = new mongoose.Schema({
     alt: { type: String, default: '' }
   }],
 
- variants: [{
-    color: { type: String, required: true },
-    colorHex: { type: String, default: '#000000' },
-    images: [{ type: String }],
-    sizes: [{
-      size: { type: String, required: true },
-      stock: { type: Number, default: 0 }
-    }]
-  }],
+  variants: [variantSchema],
 
   tags: [{ type: String, lowercase: true }],
   material: { type: String, default: '' },
@@ -113,6 +105,21 @@ const productSchema = new mongoose.Schema({
 productSchema.virtual('totalStock').get(function () {
   if (!this.variants || !this.variants.length) return 0;
   return this.variants.reduce((sum, v) => sum + (v.stock || 0), 0);
+});
+
+// Transparently hydrate products created by the previous nested color/size schema.
+// Once an old product is edited it is saved in the canonical flat format.
+productSchema.pre('init', function (data) {
+  if (!Array.isArray(data.variants) || !data.variants.some(v => Array.isArray(v.sizes))) return;
+  data.variants = data.variants.flatMap((group, groupIndex) =>
+    (group.sizes || []).map((entry, sizeIndex) => ({
+      size: entry.size,
+      color: group.color,
+      colorHex: group.colorHex || '#000000',
+      stock: Number(entry.stock || 0),
+      sku: `LEGACY-${data._id}-${groupIndex}-${sizeIndex}`
+    }))
+  );
 });
 
 

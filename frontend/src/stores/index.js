@@ -37,6 +37,8 @@ export const useAuthStore = create((set, get) => ({
       isLoading: false,
     }),
 
+  updateUser: (user) => set({ user }),
+
   logout: () =>
     set({
       user: null,
@@ -150,6 +152,7 @@ export const useWishlistStore = create(
   persist(
     (set, get) => ({
       items: [],
+      setItems: (items) => set({ items }),
 
       toggle: (productId) => {
         const items = get().items

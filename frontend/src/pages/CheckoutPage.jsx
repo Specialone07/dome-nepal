@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Check, Lock, ChevronDown } from 'lucide-react'
+import { Check } from 'lucide-react'
 import { useCartStore, useAuthStore } from '../stores'
 import { orderAPI } from '../services/api'
 import { formatPrice } from '../utils/helpers'
@@ -15,27 +15,53 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false)
   const [coupon, setCoupon] = useState('')
   const [couponApplied, setCouponApplied] = useState(false)
+  const [serverPricing, setServerPricing] = useState(null)
+  const [placedOrder, setPlacedOrder] = useState(null)
   const { items, clearCart } = useCartStore()
   const { isAuthenticated, user } = useAuthStore()
-  const navigate = useNavigate()
+  const defaultAddress = user?.addresses?.find(address => address.isDefault) || user?.addresses?.[0]
 
   const [shipping, setShipping] = useState({
-    name: user?.name || '', phone: '', street: '', city: '', state: '', country: 'Nepal'
+    name: user?.name || '', email: user?.email || '', phone: defaultAddress?.phone || user?.phone || '',
+    street: defaultAddress?.street || '', city: defaultAddress?.city || '', state: defaultAddress?.state || '',
+    zip: defaultAddress?.zip || '', country: defaultAddress?.country || 'Nepal'
   })
   const [paymentMethod, setPaymentMethod] = useState('cash_on_delivery')
 
-  const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0)
-  const shippingFee = subtotal >= 5000 ? 0 : 180
-  // const tax = Math.round(subtotal * 0.13)
-  const discount = couponApplied ? Math.round(subtotal * 0.05) : 0
-  const total = subtotal + shippingFee + (- discount)
+  const estimateSubtotal = items.reduce((s, i) => s + i.price * i.quantity, 0)
+  const subtotal = serverPricing?.subtotal ?? estimateSubtotal
+  const shippingFee = serverPricing?.shippingPrice ?? (subtotal >= 5000 ? 0 : 180)
+  const discount = serverPricing?.discount ?? 0
+  const total = serverPricing?.totalPrice ?? (subtotal + shippingFee)
+  const orderItems = items.map(i => ({ product: i.product, size: i.size, color: i.color, quantity: i.quantity }))
 
-  const handleShippingSubmit = (e) => {
+  const applyCoupon = async () => {
+    if (!coupon.trim()) return toast.error('Enter a coupon code')
+    try {
+      const { data } = await orderAPI.quote({ items: orderItems, couponCode: coupon.trim() })
+      setServerPricing(data.data)
+      setCouponApplied(Boolean(data.data.couponCode))
+      toast.success('Coupon applied')
+    } catch (err) {
+      setCouponApplied(false)
+      setServerPricing(null)
+      toast.error(err?.response?.data?.message || 'Invalid coupon code')
+    }
+  }
+
+  const handleShippingSubmit = async (e) => {
     e.preventDefault()
-    const empty = Object.entries(shipping).find(([k, v]) => k !== 'state' && !v.trim())
+    const empty = Object.entries(shipping).find(([k, v]) => k !== 'zip' && !v.trim())
     if (empty) return toast.error(`Please fill in ${empty[0]}`)
-    setStep(2)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    try {
+      setLoading(true)
+      const { data } = await orderAPI.quote({ items: orderItems, couponCode: couponApplied ? coupon : '' })
+      setServerPricing(data.data)
+      setStep(2)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Please review your bag')
+    } finally { setLoading(false) }
   }
 
 const handlePlaceOrder = async () => {
@@ -46,12 +72,7 @@ const handlePlaceOrder = async () => {
 
   const { data } = await orderAPI.create(
   {
-    items: items.map(i => ({
-      product: i.product,
-      size: i.size,
-      color: i.color,
-      quantity: i.quantity,
-    })),
+    items: orderItems,
     shippingAddress: {
       name: shipping.name,
       email: shipping.email,
@@ -60,31 +81,33 @@ const handlePlaceOrder = async () => {
       state: shipping.state,
       country: shipping.country,
       phone: shipping.phone,
+      zip: shipping.zip,
     },
     paymentMethod,
 
     // ✅ ADD THESE (THIS FIXES YOUR ERROR)
-    subtotal: Number(subtotal),
-    shippingPrice: Number(shippingFee),
-    discount: Number(discount),
-    totalPrice: Number(total),
-
     couponCode: couponApplied ? coupon : '',
   },
   guestId
 )
 
-    // ✅ Persist guestId returned from backend
     if (data.guestId) localStorage.setItem('guestId', data.guestId)
+    if (!isAuthenticated) {
+      let recent = []
+      try {
+        const saved = JSON.parse(localStorage.getItem('guestOrders') || '[]')
+        recent = Array.isArray(saved) ? saved : []
+      } catch {
+        recent = []
+      }
+      const orderId = data.data.order._id
+      localStorage.setItem('guestOrders', JSON.stringify([orderId, ...recent.filter(id => id !== orderId)].slice(0, 10)))
+    }
 
     clearCart()
+    setPlacedOrder(data.data.order)
     setStep(3)
     window.scrollTo({ top: 0, behavior: 'smooth' })
-
-    // ✅ Guests go to order tracking page, users go to account orders
-      setTimeout(() => {
-      navigate('/')
-    }, 3000)
 
   } catch (err) {
     toast.error(err?.response?.data?.message || 'Failed to place order')
@@ -107,6 +130,15 @@ const handlePlaceOrder = async () => {
   return (
     <PageTransition>
       <div className="page-container py-10 md:py-16">
+        {!isAuthenticated && step !== 3 && (
+          <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border border-green-100 bg-green-50 px-5 py-4">
+            <div>
+              <p className="text-sm font-medium text-green-900">Guest checkout — no account required</p>
+              <p className="text-xs text-green-700 mt-0.5">Enter your delivery details and place your order directly.</p>
+            </div>
+            <Link to="/login?redirect=/checkout" className="text-xs underline text-green-900 whitespace-nowrap">Sign in optionally</Link>
+          </div>
+        )}
         {/* Steps */}
         <div className="flex items-center justify-center gap-0 mb-12">
           {STEPS.map((s, i) => (
@@ -141,8 +173,13 @@ const handlePlaceOrder = async () => {
                 <Check size={32} className="text-green-600" />
               </motion.div>
               <h2 className="font-display text-4xl font-light mb-3">Order Placed!</h2>
-              <p className="text-stone-500 mb-8">Thank you for your purchase. You'll receive a confirmation shortly.</p>
-              <p className="text-xs text-stone-400 font-mono">Redirecting to your order...</p>
+              <p className="text-stone-500 mb-2">Your order is confirmed and ready to track.</p>
+              {placedOrder?.orderNumber && <p className="text-xs text-stone-500 font-mono mb-8">Order #{placedOrder.orderNumber}</p>}
+              <div className="flex flex-col sm:flex-row justify-center gap-3">
+                {placedOrder?._id && <Link to={isAuthenticated ? `/account/orders/${placedOrder._id}` : `/orders/${placedOrder._id}`} className="btn-primary text-xs">Track your order</Link>}
+                <Link to="/shop" className="btn-outline text-xs">Continue shopping</Link>
+              </div>
+              {!isAuthenticated && <p className="text-xs text-stone-400 mt-6">Order access is saved on this device. You can return through Help → Track Order without logging in.</p>}
             </motion.div>
           ) : (
             <motion.div
@@ -158,9 +195,7 @@ const handlePlaceOrder = async () => {
                 {step === 1 && (
                   <form onSubmit={handleShippingSubmit} className="space-y-5">
                     <h2 className="font-display text-2xl font-light mb-6">Shipping Details</h2>
-                    <div className="grid grid-cols-2 gap-4">
-                     
-                      <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
   <div className="col-span-2">
     <label className="block text-xs tracking-widest uppercase text-stone-500 mb-1.5">Full Name *</label>
     <input value={shipping.name} onChange={e => setShipping(s => ({...s, name: e.target.value}))}
@@ -168,7 +203,7 @@ const handlePlaceOrder = async () => {
   </div>
   <div className="col-span-2">
     <label className="block text-xs tracking-widest uppercase text-stone-500 mb-1.5">Phone Number *</label>
-    <input value={shipping.phone} onChange={e => setShipping(s => ({...s, phone: e.target.value}))}
+    <input type="tel" autoComplete="tel" value={shipping.phone} onChange={e => setShipping(s => ({...s, phone: e.target.value}))}
       required className="input-field" placeholder="+977 98XXXXXXXX" />
   </div>
   <div className="col-span-2">
@@ -183,7 +218,7 @@ const handlePlaceOrder = async () => {
   </div>
    <div>
     <label className="block text-xs tracking-widest uppercase text-stone-500 mb-1.5">Email *</label>
-    <input value={shipping.email} onChange={e => setShipping(s => ({...s, email: e.target.value}))}
+    <input type="email" autoComplete="email" value={shipping.email} onChange={e => setShipping(s => ({...s, email: e.target.value}))}
       required className="input-field" placeholder="johndon@gmail.com" />
   </div>
   <div>
@@ -195,11 +230,10 @@ const handlePlaceOrder = async () => {
     <label className="block text-xs tracking-widests uppercase text-stone-500 mb-1.5">Country</label>
     <input value={shipping.country} readOnly className="input-field bg-cream-50 text-stone-500" />
   </div>
-</div>
                     </div>
                     <div className="pt-4">
-                      <motion.button type="submit" whileTap={{ scale: 0.98 }} className="btn-primary w-full text-xs">
-                        Continue to Payment
+                      <motion.button disabled={loading} type="submit" whileTap={{ scale: 0.98 }} className="btn-primary w-full text-xs disabled:opacity-50">
+                        {loading ? 'Checking order...' : 'Continue to Payment'}
                       </motion.button>
                     </div>
                   </form>
@@ -279,14 +313,11 @@ const handlePlaceOrder = async () => {
                   <div className="flex gap-2 mb-5">
                     <input
                       value={coupon} onChange={e => setCoupon(e.target.value.toUpperCase())}
-                      placeholder="Coupon code (DOME05)"
+                      placeholder="Coupon code"
                       className="input-field text-xs flex-1"
                     />
                     <button
-                      onClick={() => {
-                        if (coupon === 'DOME05') { setCouponApplied(true); toast.success('05% discount applied!') }
-                        else toast.error('Invalid coupon code')
-                      }}
+                      onClick={applyCoupon}
                       className="btn-outline text-[10px] px-4 whitespace-nowrap"
                     >Apply</button>
                   </div>
@@ -296,7 +327,7 @@ const handlePlaceOrder = async () => {
                       { label: 'Subtotal', value: formatPrice(subtotal) },
                       { label: 'Shipping', value: shippingFee === 0 ? 'Free' : formatPrice(shippingFee) },
                       // { label: 'VAT (13%)', value: formatPrice(tax) },
-                      ...(couponApplied ? [{ label: 'Discount (5%)', value: `-${formatPrice(discount)}`, red: true }] : []),
+                      ...(couponApplied ? [{ label: 'Discount', value: `-${formatPrice(discount)}`, red: true }] : []),
                     ].map(({ label, value, red }) => (
                       <div key={label} className="flex justify-between text-xs">
                         <span className="text-stone-500">{label}</span>
@@ -312,9 +343,7 @@ const handlePlaceOrder = async () => {
                       
                     </div>
                     <p>
-                    🚚 Delivery Note:
-Inside Kathmandu Valley, delivery charge is Rs. 100. For outside the valley, charges vary based on location—we’ll 
-contact you after your order to confirm the exact delivery fee and payment details.
+                    Delivery is free above Rs. 5,000; otherwise a Rs. 180 standard delivery fee applies.
                     </p>
                   </div>
                 </div>

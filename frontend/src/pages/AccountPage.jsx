@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
 import { User, ShoppingBag, Heart, MapPin, Settings, LogOut, ChevronRight } from 'lucide-react'
-import { authAPI, orderAPI } from '../services/api'
+import { authAPI, orderAPI, userAPI } from '../services/api'
 import { useAuthStore } from '../stores'
 import { formatPrice, formatDate, ORDER_STATUSES } from '../utils/helpers'
 import { OrderSkeleton } from '../components/common/Skeletons'
@@ -19,7 +19,11 @@ const TABS = [
 
 export default function AccountPage() {
   const [tab, setTab] = useState('orders')
-  const { user, logout } = useAuthStore()
+  const { user, logout, updateUser } = useAuthStore()
+  const [profile, setProfile] = useState({ name: user?.name || '', phone: user?.phone || '' })
+  const [showAddressForm, setShowAddressForm] = useState(false)
+  const [address, setAddress] = useState({ label: 'Home', street: '', city: '', state: '', zip: '', country: 'Nepal', phone: '' })
+  const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '' })
   const navigate = useNavigate()
 
   const { data: ordersData, isLoading: ordersLoading } = useQuery({
@@ -33,6 +37,43 @@ export default function AccountPage() {
     logout()
     toast.success('Signed out')
     navigate('/')
+  }
+
+  const saveProfile = async (event) => {
+    event.preventDefault()
+    try {
+      const { data } = await userAPI.updateProfile(profile)
+      updateUser(data.data.user)
+      toast.success('Profile updated')
+    } catch (error) { toast.error(error.response?.data?.message || 'Could not update profile') }
+  }
+
+  const addAddress = async (event) => {
+    event.preventDefault()
+    try {
+      const { data } = await userAPI.addAddress(address)
+      updateUser({ ...user, addresses: data.data.addresses })
+      setShowAddressForm(false)
+      setAddress({ label: 'Home', street: '', city: '', state: '', zip: '', country: 'Nepal', phone: '' })
+      toast.success('Address saved')
+    } catch (error) { toast.error(error.response?.data?.message || 'Could not save address') }
+  }
+
+  const deleteAddress = async (id) => {
+    try {
+      const { data } = await userAPI.deleteAddress(id)
+      updateUser({ ...user, addresses: data.data.addresses })
+      toast.success('Address removed')
+    } catch (error) { toast.error(error.response?.data?.message || 'Could not remove address') }
+  }
+
+  const changePassword = async (event) => {
+    event.preventDefault()
+    try {
+      await userAPI.changePassword(passwords)
+      setPasswords({ currentPassword: '', newPassword: '' })
+      toast.success('Password changed')
+    } catch (error) { toast.error(error.response?.data?.message || 'Could not change password') }
   }
 
   return (
@@ -145,20 +186,19 @@ export default function AccountPage() {
             {tab === 'profile' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                 <h2 className="font-display text-2xl font-light mb-6">My Profile</h2>
-                <div className="space-y-4 max-w-md">
-                  {[
-                    { label: 'Full Name', value: user?.name },
-                    { label: 'Email Address', value: user?.email },
-                    { label: 'Phone', value: user?.phone || 'Not set' },
-                    { label: 'Member Since', value: formatDate(user?.createdAt) },
-                  ].map(({ label, value }) => (
-                    <div key={label} className="border border-stone-100 p-4">
-                      <p className="text-[10px] tracking-[0.2em] uppercase text-stone-400 font-mono mb-1">{label}</p>
-                      <p className="text-sm text-obsidian-900">{value}</p>
-                    </div>
-                  ))}
-                  <Link to="/account/edit" className="btn-outline text-xs inline-flex">Edit Profile</Link>
-                </div>
+                <form onSubmit={saveProfile} className="space-y-4 max-w-md">
+                  <div><label className="block text-xs uppercase tracking-widest text-stone-500 mb-1">Full name</label><input required className="input-field" value={profile.name} onChange={e => setProfile(p => ({ ...p, name: e.target.value }))} /></div>
+                  <div><label className="block text-xs uppercase tracking-widest text-stone-500 mb-1">Email</label><input disabled className="input-field bg-stone-50" value={user?.email || ''} /></div>
+                  <div><label className="block text-xs uppercase tracking-widest text-stone-500 mb-1">Phone</label><input className="input-field" value={profile.phone} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))} /></div>
+                  <p className="text-xs text-stone-400">Member since {formatDate(user?.createdAt)}</p>
+                  <button className="btn-primary text-xs">Save profile</button>
+                </form>
+                <form onSubmit={changePassword} className="space-y-3 max-w-md mt-10 pt-8 border-t border-stone-100">
+                  <h3 className="font-display text-lg">Change password</h3>
+                  <input required type="password" className="input-field" placeholder="Current password" value={passwords.currentPassword} onChange={e => setPasswords(v => ({ ...v, currentPassword: e.target.value }))} />
+                  <input required minLength="8" type="password" className="input-field" placeholder="New password (8+ characters)" value={passwords.newPassword} onChange={e => setPasswords(v => ({ ...v, newPassword: e.target.value }))} />
+                  <button className="btn-outline text-xs">Update password</button>
+                </form>
               </motion.div>
             )}
 
@@ -176,7 +216,7 @@ export default function AccountPage() {
                   <div className="text-center py-12 border border-stone-100">
                     <MapPin size={40} strokeWidth={1} className="text-stone-200 mx-auto mb-3" />
                     <p className="text-sm text-stone-400 mb-6">No addresses saved</p>
-                    <button className="btn-outline text-xs">Add Address</button>
+                    <button onClick={() => setShowAddressForm(true)} className="btn-outline text-xs">Add Address</button>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -187,12 +227,17 @@ export default function AccountPage() {
                             <p className="font-body font-medium text-sm text-obsidian-900 mb-1">{addr.label}</p>
                             <p className="text-xs text-stone-500">{addr.street}, {addr.city}, {addr.zip}</p>
                           </div>
-                          {addr.isDefault && <span className="badge bg-green-50 text-green-600">Default</span>}
+                           <div className="flex gap-2 items-center">{addr.isDefault && <span className="badge bg-green-50 text-green-600">Default</span>}<button onClick={() => deleteAddress(addr._id)} className="text-xs text-red-400 hover:text-red-600">Remove</button></div>
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
+                {!showAddressForm && (user?.addresses || []).length > 0 && <button onClick={() => setShowAddressForm(true)} className="btn-outline text-xs mt-4">Add another address</button>}
+                {showAddressForm && <form onSubmit={addAddress} className="mt-5 border border-stone-100 p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {['label', 'street', 'city', 'state', 'zip', 'phone'].map(field => <input key={field} required={!['zip', 'phone'].includes(field)} className={`input-field ${field === 'street' ? 'sm:col-span-2' : ''}`} placeholder={field.charAt(0).toUpperCase() + field.slice(1)} value={address[field]} onChange={e => setAddress(a => ({ ...a, [field]: e.target.value }))} />)}
+                  <div className="sm:col-span-2 flex gap-2"><button className="btn-primary text-xs">Save address</button><button type="button" onClick={() => setShowAddressForm(false)} className="btn-outline text-xs">Cancel</button></div>
+                </form>}
               </motion.div>
             )}
           </div>

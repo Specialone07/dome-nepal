@@ -192,7 +192,7 @@ export default function CartDrawer() {
                   <ArrowRight size={14} />
                 </Link>
                 <p>
-                  Note: Inside valley delivery charge is Rs. 100. For outside the valley, charges vary based on location—we’ll contact you after your order to confirm the exact delivery fee and payment details.
+                  Delivery is free above Rs. 5,000; otherwise a Rs. 180 standard delivery fee applies.
                 </p>
 
                 <button

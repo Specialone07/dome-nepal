@@ -1,21 +1,18 @@
 import { useState, useRef, useCallback } from 'react'
 import { motion, AnimatePresence, Reorder } from 'framer-motion'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Edit, Trash2, Search, X, GripVertical, Upload, Crop, Image as ImageIcon, Package, Ruler, ChevronDown, ChevronUp, Eye, AlertCircle, Loader2 } from 'lucide-react'
+import { Plus, Edit, Trash2, Search, X, GripVertical, Upload, Crop, Image as ImageIcon, Package, Ruler, ChevronDown, ChevronUp, Eye, AlertCircle, Loader2, RotateCcw } from 'lucide-react'
 import api, { productAPI } from '../../services/api'
 import { formatPrice } from '../../utils/helpers'
 import { 
   SIZE_CHART_PRESETS, 
   DEFAULT_SIZES, 
   DEFAULT_SIZE_CHART,
-  buildSizeChartRows,
-  createMeasurementKey,
   validateMeasurementName,
   validateSizeName,
   applyPreset,
   normalizeSizeChartFromAPI,
   prepareSizeChartForAPI,
-  hasValidSizeChartData,
   getActiveRows,
   getMeasurementCount,
   getActiveSizeCount
@@ -134,7 +131,7 @@ function CropModal({ src, filename, onDone, onSkip }) {
 function DropzoneArea({ images, setImages, variantColors, disabled = false }) {
   const inputRef = useRef(null)
   const [isDragging, setIsDragging] = useState(false)
-  const [cropQueue, setCropQueue] = useState([])
+  const [, setCropQueue] = useState([])
   const [cropping, setCropping] = useState(null)
 
   const processFiles = (files) => {
@@ -505,6 +502,7 @@ function flattenColorGroups(colorGroups) {
       flat.push({
         size,
         color: group.color,
+        colorHex: COLOR_PRESETS[group.color] || '#000000',
         stock: Number(group.sizes[size] || 0),
         imageId: group.imageId || '',
         sku: `SKU-${size}-${group.color}-${Date.now()}`,
@@ -638,7 +636,7 @@ function SizeChartPreview({ sizeChart, onClose }) {
   );
 }
 
-function SizeChartBuilder({ sizeChart, setSizeChart, productName = '', disabled = false }) {
+function SizeChartBuilder({ sizeChart, setSizeChart, disabled = false }) {
   const [open, setOpen] = useState(false)
   const [newMeasurement, setNewMeasurement] = useState('')
   const [newSize, setNewSize] = useState('')
@@ -1046,10 +1044,11 @@ function SizeChartBuilder({ sizeChart, setSizeChart, productName = '', disabled 
 // ─── Bulk Upload Modal ──────────────────────────────────────────────────────────
 function BulkUploadModal({ onClose, onImport }) {
   const [rows, setRows] = useState([
-    { name: '', price: '', category: 'tops', color: 'Black', size: 'M', stock: '10' },
+    { name: '', price: '', category: 'tops', color: 'Black', size: 'M', stock: '10', image: '' },
   ])
   const [csvText, setCsvText] = useState('')
   const [tab, setTab] = useState('manual')
+  const [importing, setImporting] = useState(false)
 
   const parseCsv = () => {
     try {
@@ -1069,11 +1068,14 @@ function BulkUploadModal({ onClose, onImport }) {
   const updateRow = (i, field, val) =>
     setRows(prev => prev.map((r, idx) => idx === i ? { ...r, [field]: val } : r))
 
-  const handleImport = () => {
+  const handleImport = async () => {
     const valid = rows.filter(r => r.name && r.price)
     if (!valid.length) { toast.error('No valid rows'); return }
-    onImport(valid)
-    onClose()
+    try {
+      setImporting(true)
+      await onImport(valid)
+      onClose()
+    } finally { setImporting(false) }
   }
 
   return (
@@ -1103,9 +1105,9 @@ function BulkUploadModal({ onClose, onImport }) {
           {tab === 'csv' ? (
             <div className="space-y-3">
               <div className="bg-stone-50 border border-stone-100 rounded-lg p-3 text-[10px] font-mono text-stone-400">
-                name,price,category,color,size,stock<br />
-                "Classic Tee",29.99,tops,Black,M,50<br />
-                "Slim Jogger",49.99,bottoms,Navy,L,25
+                 name,price,category,color,size,stock,image<br />
+                 "Classic Tee",2999,tops,Black,M,50,https://example.com/tee.jpg<br />
+                 "Slim Jogger",4999,bottoms,Navy,L,25,https://example.com/jogger.jpg
               </div>
               <textarea
                 value={csvText} onChange={e => setCsvText(e.target.value)}
@@ -1118,12 +1120,12 @@ function BulkUploadModal({ onClose, onImport }) {
             </div>
           ) : (
             <div className="space-y-2">
-              <div className="grid grid-cols-6 gap-2 text-[9px] font-mono text-stone-400 uppercase tracking-wider px-1">
-                {['Name', 'Price', 'Category', 'Color', 'Size', 'Stock'].map(h => <div key={h}>{h}</div>)}
+              <div className="grid grid-cols-7 gap-2 text-[9px] font-mono text-stone-400 uppercase tracking-wider px-1 min-w-[760px]">
+                {['Name', 'Price', 'Category', 'Color', 'Size', 'Stock', 'Image URL'].map(h => <div key={h}>{h}</div>)}
               </div>
               {rows.map((row, i) => (
-                <div key={i} className="grid grid-cols-6 gap-2 items-center">
-                  {['name', 'price', 'category', 'color', 'size', 'stock'].map(field => (
+                <div key={i} className="grid grid-cols-7 gap-2 items-center min-w-[760px]">
+                  {['name', 'price', 'category', 'color', 'size', 'stock', 'image'].map(field => (
                     field === 'category' ? (
                       <select key={field} value={row[field] || 'tops'} onChange={e => updateRow(i, field, e.target.value)}
                         className="border border-stone-200 rounded px-2 py-1.5 text-xs outline-none focus:border-stone-400">
@@ -1138,7 +1140,7 @@ function BulkUploadModal({ onClose, onImport }) {
                   ))}
                 </div>
               ))}
-              <button type="button" onClick={() => setRows([...rows, { name: '', price: '', category: 'tops', color: 'Black', size: 'M', stock: '10' }])}
+              <button type="button" onClick={() => setRows([...rows, { name: '', price: '', category: 'tops', color: 'Black', size: 'M', stock: '10', image: '' }])}
                 className="text-xs text-stone-500 hover:text-stone-800 border border-dashed border-stone-200 rounded-lg py-2 w-full hover:border-stone-400 transition-colors">
                 + Add Row
               </button>
@@ -1148,8 +1150,8 @@ function BulkUploadModal({ onClose, onImport }) {
 
         <div className="px-5 py-4 border-t border-stone-100 flex gap-3">
           <button onClick={onClose} className="flex-1 py-2 text-xs border border-stone-200 rounded-lg text-stone-500 hover:bg-stone-50 transition-colors">Cancel</button>
-          <button onClick={handleImport} className="flex-1 py-2 text-xs bg-stone-900 text-white rounded-lg hover:bg-stone-800 transition-colors">
-            Import {rows.filter(r => r.name).length} Products
+          <button disabled={importing} onClick={handleImport} className="flex-1 py-2 text-xs bg-stone-900 text-white rounded-lg hover:bg-stone-800 transition-colors disabled:opacity-50">
+            {importing ? 'Importing...' : `Import ${rows.filter(r => r.name).length} Products`}
           </button>
         </div>
       </motion.div>
@@ -1162,14 +1164,16 @@ function ProductFormModal({ product, onClose }) {
   const qc = useQueryClient()
   const isEdit = !!product
 
-  const [form, setForm] = useState(product || {
-    name: '', description: '', price: '', comparePrice: '',
-    category: 'tops', gender: 'unisex', material: '', isFeatured: false, isNew: true,
+  const [form, setForm] = useState({
+    name: '', description: '', price: '', comparePrice: '', category: 'tops', gender: 'unisex',
+    material: '', isFeatured: false, isBestSeller: false,
+    ...(product || {}),
+    isNew: product ? Boolean(product.newArrival) : true,
   })
 
   const [images, setImages] = useState(
     product?.images?.map((img, i) => ({
-      file: null, preview: img.url, color: '', id: i, isExisting: true,
+      file: null, preview: img.url, publicId: img.publicId || '', color: '', id: i, isExisting: true,
     })) || []
   )
 
@@ -1259,7 +1263,7 @@ function ProductFormModal({ product, onClose }) {
         console.log('✅ Images uploaded successfully:', uploadResponse.data)
 
         // Update images with uploaded URLs
-        const uploadedUrls = uploadResponse.data.data || uploadResponse.data
+        const uploadedUrls = uploadResponse.data.data?.images || uploadResponse.data.images || []
         const updatedImages = [...images]
         let urlIndex = 0
         
@@ -1293,6 +1297,13 @@ function ProductFormModal({ product, onClose }) {
 
       // Size chart — always send, so disabling it actually persists
       const chartPayload = prepareSizeChartForAPI(sizeChart)
+      if (chartPayload.enabled) {
+        const availableSizes = new Set(flatVariants.map(variant => variant.size))
+        chartPayload.rows = chartPayload.rows.filter(row => availableSizes.has(row.size))
+        if (!chartPayload.rows.length) {
+          throw new Error('The size chart needs at least one row matching an enabled product size')
+        }
+      }
       formData.append('sizeChart', JSON.stringify(chartPayload))
 
       // Add image URLs instead of files (since they're already uploaded)
@@ -1468,6 +1479,7 @@ function ProductFormModal({ product, onClose }) {
             {[
               { key: 'isFeatured', label: 'Featured', color: 'bg-amber-400' },
               { key: 'isNew', label: 'New Arrival', color: 'bg-blue-500' },
+              { key: 'isBestSeller', label: 'Best Seller', color: 'bg-emerald-500' },
             ].map(({ key, label, color }) => (
               <label key={key} className={`flex items-center gap-2 cursor-pointer group ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}>
                 <div
@@ -1510,25 +1522,33 @@ function ProductFormModal({ product, onClose }) {
 export default function AdminProducts() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+  const [stockFilter, setStockFilter] = useState('')
   const [modal, setModal] = useState(null)
   const [bulkModal, setBulkModal] = useState(false)
   const qc = useQueryClient()
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-products', page, search],
+    queryKey: ['admin-products', page, search, stockFilter],
     queryFn: () =>
-      productAPI.getAll({ page, limit: 15, search: search || undefined, isActive: undefined })
+      productAPI.getAdminAll({ page, limit: 15, search: search || undefined, stock: stockFilter || undefined })
         .then(r => r.data.data),
   })
 
-  const deleteMutation = useMutation({
-    mutationFn: productAPI.delete,
-    onSuccess: () => { qc.invalidateQueries(['admin-products']); toast.success('Product removed') },
+  const activeMutation = useMutation({
+    mutationFn: ({ id, isActive }) => productAPI.setActive(id, isActive),
+    onSuccess: (_response, values) => { qc.invalidateQueries({ queryKey: ['admin-products'] }); qc.invalidateQueries({ queryKey: ['admin-stats'] }); toast.success(values.isActive ? 'Product restored' : 'Product archived') },
+    onError: error => toast.error(error.response?.data?.message || 'Could not update product')
   })
 
-  const handleBulkImport = (rows) => {
-    toast.success(`Queued ${rows.length} products for import`)
-    console.log('Bulk import rows:', rows)
+  const handleBulkImport = async (rows) => {
+    try {
+      const { data: result } = await productAPI.bulkCreate(rows)
+      qc.invalidateQueries({ queryKey: ['admin-products'] })
+      toast.success(`${result.data.count} products imported`)
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Bulk import failed')
+      throw error
+    }
   }
 
   return (
@@ -1553,10 +1573,14 @@ export default function AdminProducts() {
       </div>
 
       {/* Search */}
-      <div className="relative">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
-        <input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
-          placeholder="Search products..." className="input-field pl-9 text-sm" />
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} placeholder="Search product name, slug, or SKU..." className="input-field pl-9 text-sm" />
+        </div>
+        <select value={stockFilter} onChange={e => { setStockFilter(e.target.value); setPage(1) }} className="input-field bg-white sm:w-44 text-xs">
+          <option value="">All inventory</option><option value="low">Low stock (1–10)</option><option value="out">Out of stock</option>
+        </select>
       </div>
 
       {/* Table */}
@@ -1590,9 +1614,9 @@ export default function AdminProducts() {
                       <td className="px-4 py-3 text-xs text-stone-500 capitalize">{p.category}</td>
                       <td className="px-4 py-3 font-display text-sm text-obsidian-900">{formatPrice(p.price)}</td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs font-mono ${p.totalStock > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                        <button title="Edit variant inventory" onClick={() => setModal(p)} className={`text-xs font-mono underline decoration-dotted ${p.totalStock === 0 ? 'text-red-500' : p.totalStock <= 10 ? 'text-amber-600' : 'text-green-600'}`}>
                           {p.totalStock ?? '—'}
-                        </span>
+                        </button>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1 flex-wrap">
@@ -1604,7 +1628,9 @@ export default function AdminProducts() {
                       <td className="px-4 py-3">
                         <div className="flex gap-1 flex-wrap">
                           {p.isFeatured && <span className="badge bg-gold-400/20 text-gold-600">Featured</span>}
-                          {p.isNew && <span className="badge bg-blue-50 text-blue-600">New</span>}
+                          {p.newArrival && <span className="badge bg-blue-50 text-blue-600">New</span>}
+                          {p.isBestSeller && <span className="badge bg-emerald-50 text-emerald-700">Best seller</span>}
+                          {p.sizeChart?.enabled && <span className="badge bg-purple-50 text-purple-700">Size chart</span>}
                           {!p.isActive && <span className="badge bg-red-50 text-red-500">Inactive</span>}
                         </div>
                       </td>
@@ -1613,10 +1639,10 @@ export default function AdminProducts() {
                           <button onClick={() => setModal(p)} className="p-1.5 hover:bg-stone-100 rounded transition-colors text-stone-400 hover:text-obsidian-900">
                             <Edit size={13} />
                           </button>
-                          <button onClick={() => { if (confirm('Delete this product?')) deleteMutation.mutate(p._id) }}
+                          {p.isActive ? <button title="Archive product" onClick={() => { if (confirm('Archive this product?')) activeMutation.mutate({ id: p._id, isActive: false }) }}
                             className="p-1.5 hover:bg-red-50 rounded transition-colors text-stone-400 hover:text-red-500">
                             <Trash2 size={13} />
-                          </button>
+                          </button> : <button title="Restore product" onClick={() => activeMutation.mutate({ id: p._id, isActive: true })} className="p-1.5 hover:bg-green-50 rounded text-stone-400 hover:text-green-600"><RotateCcw size={13} /></button>}
                         </div>
                       </td>
                     </motion.tr>
@@ -1625,6 +1651,11 @@ export default function AdminProducts() {
           </table>
         </div>
       </div>
+
+      {(data?.pagination?.pages || 0) > 1 && <div className="flex items-center justify-between">
+        <p className="text-xs text-stone-400">Page {page} of {data.pagination.pages}</p>
+        <div className="flex gap-2"><button disabled={page === 1} onClick={() => setPage(value => value - 1)} className="btn-outline text-xs disabled:opacity-40">Previous</button><button disabled={page >= data.pagination.pages} onClick={() => setPage(value => value + 1)} className="btn-outline text-xs disabled:opacity-40">Next</button></div>
+      </div>}
 
       {/* Modals */}
       <AnimatePresence>

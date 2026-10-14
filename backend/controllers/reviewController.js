@@ -52,7 +52,7 @@ const createReview = asyncHandler(async (req, res) => {
 const markHelpful = asyncHandler(async (req, res) => {
   const review = await Review.findById(req.params.id);
   if (!review) { res.status(404); throw new Error('Review not found'); }
-  const idx = review.helpful.indexOf(req.user._id);
+  const idx = review.helpful.findIndex(id => id.toString() === req.user._id.toString());
   if (idx > -1) review.helpful.splice(idx, 1);
   else review.helpful.push(req.user._id);
   await review.save();
@@ -64,7 +64,7 @@ const markHelpful = asyncHandler(async (req, res) => {
 const deleteReview = asyncHandler(async (req, res) => {
   const review = await Review.findById(req.params.id);
   if (!review) { res.status(404); throw new Error('Review not found'); }
-  if (review.user.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+  if (review.user.toString() !== req.user._id.toString() && !['admin', 'superadmin'].includes(req.user.role)) {
     res.status(403); throw new Error('Not authorized');
   }
   await review.deleteOne();

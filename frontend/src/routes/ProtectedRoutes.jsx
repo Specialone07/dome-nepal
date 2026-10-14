@@ -1,7 +1,7 @@
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../stores'
 
-const LOGIN_PATH = '/dome-admin-login-4829'
+const ADMIN_LOGIN_PATH = '/dome-admin-login-4829'
 
 // ─── Shared loading spinner ──────────────────────────────────────
 function AuthLoader() {
@@ -25,7 +25,7 @@ export function ProtectedRoute({ children }) {
   if (!isAuthenticated) {
     return (
       <Navigate
-        to={LOGIN_PATH}
+        to="/login"
         state={{ from: location }}
         replace
       />
@@ -48,7 +48,7 @@ export function AdminRoute({ children }) {
     // ✅ Consistent: pass location state same as ProtectedRoute
     return (
       <Navigate
-        to={LOGIN_PATH}
+        to={ADMIN_LOGIN_PATH}
         state={{ from: location }}
         replace
       />

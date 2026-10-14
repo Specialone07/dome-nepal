@@ -2,6 +2,40 @@
 const asyncHandler = require('express-async-handler');
 const Product = require('../models/Product');
 const { cloudinary } = require('../config/cloudinary');
+
+const normalizeVariants = (input = []) => {
+  const flat = [];
+  for (const variant of Array.isArray(input) ? input : []) {
+    if (Array.isArray(variant.sizes)) {
+      for (const entry of variant.sizes) {
+        if (!entry?.size) continue;
+        flat.push({
+          size: String(entry.size).trim(),
+          color: String(variant.color || 'Default').trim(),
+          colorHex: variant.colorHex || '#000000',
+          stock: Math.max(0, Number(entry.stock) || 0),
+          sku: entry.sku || `SKU-${entry.size}-${variant.color || 'DEFAULT'}-${Date.now()}-${flat.length}`
+        });
+      }
+      continue;
+    }
+    if (!variant?.size || !variant?.color) continue;
+    flat.push({
+      size: String(variant.size).trim(),
+      color: String(variant.color).trim(),
+      colorHex: variant.colorHex || '#000000',
+      stock: Math.max(0, Number(variant.stock) || 0),
+      sku: variant.sku || `SKU-${variant.size}-${variant.color}-${Date.now()}-${flat.length}`
+    });
+  }
+  const keys = new Set();
+  return flat.filter(variant => {
+    const key = `${variant.size.toLowerCase()}::${variant.color.toLowerCase()}`;
+    if (keys.has(key)) return false;
+    keys.add(key);
+    return true;
+  });
+};
 /* =========================================================
    GET ALL PRODUCTS
 ========================================================= */
@@ -55,7 +89,7 @@ const getProducts = asyncHandler(async (req, res) => {
 
   // Variants
   if (sizes) {
-    filter['variants.sizes.size'] = {
+    filter['variants.size'] = {
       $in: sizes.split(',').filter(Boolean)
     };
   }
@@ -76,8 +110,7 @@ const getProducts = asyncHandler(async (req, res) => {
     Product.find(filter)
       .sort(sortObj)
       .skip(skip)
-      .limit(Number(limit))
-      .lean(),
+      .limit(Number(limit)),
 
     Product.countDocuments(filter)
   ]);
@@ -135,7 +168,7 @@ const getFeaturedProducts = asyncHandler(async (req, res) => {
   })
     .sort({ createdAt: -1 })
     .limit(8)
-    .lean();
+    ;
 
   res.json({ success: true, data: { products } });
 });
@@ -151,7 +184,7 @@ const getNewArrivals = asyncHandler(async (req, res) => {
   })
     .sort({ createdAt: -1 })
     .limit(8)
-    .lean();
+    ;
 
   res.json({ success: true, data: { products } });
 });
@@ -167,7 +200,7 @@ const getBestSellers = asyncHandler(async (req, res) => {
   })
     .sort({ totalSold: -1 })
     .limit(8)
-    .lean();
+    ;
 
   res.json({ success: true, data: { products } });
 });
@@ -189,7 +222,7 @@ const getRelatedProducts = asyncHandler(async (req, res) => {
     gender: product.gender,
     _id: { $ne: product._id },
     isActive: true
-  }).limit(6).lean();
+  }).limit(6);
 
   res.json({ success: true, data: { products: related } });
 });
@@ -215,7 +248,7 @@ const searchProducts = asyncHandler(async (req, res) => {
     .sort({ score: { $meta: 'textScore' } })
     .limit(Number(limit))
     .select('name slug images price category')
-    .lean();
+    ;
 
   res.json({ success: true, data: { products } });
 });
@@ -280,38 +313,13 @@ const createProduct = asyncHandler(async (req, res) => {
     // =========================
     // 4. VALIDATE VARIANTS
     // =========================
-    variants = variants.map(v => {
-      const safeSizes = Array.isArray(v.sizes)
-        ? v.sizes
-            .filter(s => s.size && s.size.trim() !== '')
-            .map(s => ({
-              size: s.size.trim(),
-              stock: Number(s.stock || 0)
-            }))
-        : [];
-
-      return {
-        color: v.color?.trim() || "Unknown",
-        colorHex: v.colorHex || "#000000",
-        images: v.images || [],
-        sizes: safeSizes
-      };
-    }).filter(v => v.sizes.length > 0);
+    variants = normalizeVariants(variants);
 
     // =========================
     // 5. DEFAULT VARIANT
     // =========================
     if (variants.length === 0) {
-      variants = [
-        {
-          color: "Black",
-          colorHex: "#000000",
-          images: [],
-          sizes: [
-            { size: "M", stock: 10 }
-          ]
-        }
-      ];
+      return res.status(400).json({ success: false, message: 'At least one valid product variant is required' });
     }
 
     data.variants = variants;
@@ -495,23 +503,7 @@ const updateProduct = asyncHandler(async (req, res) => {
     // =========================
     // 3. VALIDATE VARIANTS
     // =========================
-    variants = variants.map(v => {
-      const safeSizes = Array.isArray(v.sizes)
-        ? v.sizes
-            .filter(s => s.size && s.size.trim() !== '')
-            .map(s => ({
-              size: s.size.trim(),
-              stock: Number(s.stock || 0)
-            }))
-        : [];
-
-      return {
-        color: v.color?.trim() || "Unknown",
-        colorHex: v.colorHex || "#000000",
-        images: v.images || [],
-        sizes: safeSizes
-      };
-    }).filter(v => v.sizes.length > 0);
+    variants = normalizeVariants(variants);
 
     data.variants = variants;
 

@@ -177,7 +177,7 @@ export default function Navbar() {
               </Link>
 
               {/* Account */}
-              {/* <Link to={isAuthenticated ? '/account' : '/login'}>
+              <Link to={isAuthenticated ? '/account' : '/login'}>
                 <motion.div
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
@@ -185,7 +185,7 @@ export default function Navbar() {
                 >
                   <User size={18} strokeWidth={1.5} />
                 </motion.div>
-              </Link> */}
+              </Link>
 
               {/* Cart */}
               <motion.button

@@ -16,15 +16,57 @@ const DUMMY_HASH = '$2a$12$dummyhashfortimingprotectionXXXXXXXXXXXXXXXXXXXXXXXX'
 // =======================================
 // ❌ REGISTER (DISABLED)
 // =======================================
-const register = asyncHandler(async (_req, res) => {
-  res.status(403).json({ message: 'Registration is disabled. Guest checkout only.' })
+const issueSession = async (user, res) => {
+  const accessToken = generateAccessToken(user._id, user.role)
+  const refreshToken = generateRefreshToken(user._id)
+  user.addRefreshToken(refreshToken)
+  user.lastLogin = new Date()
+  await user.save({ validateBeforeSave: false })
+  setAccessTokenCookie(res, accessToken)
+  setRefreshTokenCookie(res, refreshToken)
+}
+
+const register = asyncHandler(async (req, res) => {
+  const name = String(req.body.name || '').trim()
+  const email = String(req.body.email || '').trim().toLowerCase()
+  const password = String(req.body.password || '')
+  if (name.length < 2 || !/^\S+@\S+\.\S+$/.test(email) || password.length < 8) {
+    res.status(400)
+    throw new Error('Enter a valid name, email, and password of at least 8 characters')
+  }
+  if (await User.exists({ email })) {
+    res.status(409)
+    throw new Error('An account with this email already exists')
+  }
+  const user = await User.create({ name, email, password, role: 'user' })
+  await issueSession(user, res)
+  res.status(201).json({ success: true, data: { user: user.toJSON() } })
 })
 
 // =======================================
 // ❌ USER LOGIN (DISABLED)
 // =======================================
-const login = asyncHandler(async (_req, res) => {
-  res.status(403).json({ message: 'User login is disabled. Guest checkout only.' })
+const login = asyncHandler(async (req, res) => {
+  const email = String(req.body.email || '').trim().toLowerCase()
+  const password = String(req.body.password || '')
+  if (!email || !password) {
+    res.status(400)
+    throw new Error('Email and password are required')
+  }
+  const user = await User.findOne({ email }).select('+password +refreshTokens')
+  const passwordMatch = user
+    ? await user.comparePassword(password)
+    : await bcrypt.compare(password, DUMMY_HASH).catch(() => false)
+  if (!user || !passwordMatch) {
+    res.status(401)
+    throw new Error('Invalid email or password')
+  }
+  if (!user.isActive) {
+    res.status(403)
+    throw new Error('Account deactivated')
+  }
+  await issueSession(user, res)
+  res.json({ success: true, data: { user: user.toJSON() } })
 })
 
 // =======================================
@@ -117,11 +159,6 @@ const refreshToken = asyncHandler(async (req, res) => {
     clearAuthCookies(res)
     res.status(401)
     throw new Error('Refresh token reuse detected. Please log in again.')
-  }
-
-  if (!['admin', 'superadmin'].includes(user.role)) {
-    res.status(403)
-    throw new Error('Not allowed')
   }
 
   // ✅ Rotate tokens

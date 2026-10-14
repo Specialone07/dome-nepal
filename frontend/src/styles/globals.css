@@ -13,6 +13,13 @@
   --gold-300: #D4AF7A;
 }
 
+@media print {
+  nav, header, .admin-print-hide, [role="status"] { display: none !important; }
+  body, #root, main { background: white !important; overflow: visible !important; }
+  .print-order { padding: 0 !important; }
+  .print-order section { break-inside: avoid; box-shadow: none !important; }
+}
+
 @layer base {
   * { @apply border-stone-200; }
   html { scroll-behavior: smooth; }

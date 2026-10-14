@@ -2,7 +2,7 @@ import axios from 'axios'
 import { useAuthStore } from '../stores'
 
 const api = axios.create({
-  baseURL: 'https://dome-nepal-1.onrender.com/api',
+  baseURL: import.meta.env.VITE_API_URL || 'https://dome-nepal-1.onrender.com/api',
   withCredentials: true, // ✅ REQUIRED for cookies
 })
 
@@ -58,7 +58,8 @@ api.interceptors.response.use(
         processQueue(refreshError)
 
         useAuthStore.getState().logout()
-        window.location.href = '/dome-admin-login-4829'
+        const role = useAuthStore.getState().user?.role
+        window.location.href = ['admin', 'superadmin'].includes(role) ? '/dome-admin-login-4829' : '/login'
 
         return Promise.reject(refreshError)
 
@@ -88,6 +89,7 @@ export const authAPI = {
 ───────────────────────────── */
 export const productAPI = {
   getAll: (params) => api.get('/products', { params }),
+  getAdminAll: (params) => api.get('/products/admin/list', { params }),
   getOne: (identifier) => api.get(`/products/${identifier}`),
   getFeatured: () => api.get('/products/featured'),
   getNewArrivals: () => api.get('/products/new-arrivals'),
@@ -107,14 +109,18 @@ export const productAPI = {
     api.put(`/products/${id}`, data), // ✅ FIXED
 
   delete: (id) =>
-    api.delete(`/products/${id}`)
+    api.delete(`/products/${id}`),
+  setActive: (id, isActive) => api.patch(`/products/admin/${id}/active`, { isActive }),
+  bulkCreate: (rows) => api.post('/products/bulk', { rows })
 }
 /* ─────────────────────────────
    REVIEW API
 ───────────────────────────── */
 export const reviewAPI = {
   create: (data) => api.post('/reviews', data),
-  getByProduct: (productId) => api.get(`/reviews/${productId}`),
+  getByProduct: (productId) => api.get(`/reviews/product/${productId}`),
+  getForProduct: (productId) => api.get(`/reviews/product/${productId}`),
+  helpful: (id) => api.patch(`/reviews/${id}/helpful`),
   delete: (id) => api.delete(`/reviews/${id}`)
 }
 
@@ -122,6 +128,7 @@ export const reviewAPI = {
    ORDER API
 ───────────────────────────── */
 export const orderAPI = {
+  quote: (data) => api.post('/orders/quote', data),
   create: (data, guestId) =>
     api.post('/orders', data, {
       headers: guestId ? { 'x-guest-id': guestId } : {}
@@ -135,7 +142,9 @@ export const orderAPI = {
       headers: guestId ? { 'x-guest-id': guestId } : {}
     }),
 
-  cancel: (id) => api.patch(`/orders/${id}/cancel`),
+  cancel: (id, data = {}, guestId) => api.patch(`/orders/${id}/cancel`, data, {
+    headers: guestId ? { 'x-guest-id': guestId } : {}
+  }),
   updateStatus: (id, data) =>
     api.patch(`/orders/${id}/status`, data),
 
@@ -147,6 +156,7 @@ export const orderAPI = {
 ───────────────────────────── */
 export const wishlistAPI = {
   get: () => api.get('/wishlist'),
+  sync: (productIds) => api.post('/wishlist/sync', { productIds }),
   toggle: (productId) =>
     api.post(`/wishlist/toggle/${productId}`)
 }
@@ -157,12 +167,20 @@ export const userAPI = {
   addAddress: (data) => api.post('/users/addresses', data),
   updateAddress: (id, data) =>
     api.put(`/users/addresses/${id}`, data),
-  deleteAddress: (id) =>
-    api.delete(`/users/addresses/${id}`)
+  deleteAddress: (id) => api.delete(`/users/addresses/${id}`),
+  getAll: (params) => api.get('/users', { params }),
+  update: (id, data) => api.patch(`/users/${id}`, data)
 }
 
 export const adminAPI = {
   getStats: () => api.get('/admin/stats')
+}
+
+export const couponAPI = {
+  getAll: () => api.get('/coupons'),
+  create: (data) => api.post('/coupons', data),
+  update: (id, data) => api.put(`/coupons/${id}`, data),
+  delete: (id) => api.delete(`/coupons/${id}`)
 }
 
 export const uploadAPI = {

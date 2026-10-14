@@ -1,6 +1,6 @@
 const express = require('express')
 const router  = express.Router()
-const { protect, adminOnly } = require('../middleware/authMiddleware')
+const { protect } = require('../middleware/authMiddleware')
 const {
   register,
   login,
@@ -17,6 +17,6 @@ router.post('/refresh',      refreshToken)
 
 // ✅ logout and /me are protected — req.user is always set
 router.post('/logout', protect, logout)
-router.get('/me',      protect, adminOnly, getMe)
+router.get('/me',      protect, getMe)
 
 module.exports = router

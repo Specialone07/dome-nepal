@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Eye, EyeOff } from 'lucide-react'
-import { authAPI } from '../services/api'
-import { useAuthStore } from '../stores'
+import { authAPI, wishlistAPI } from '../services/api'
+import { useAuthStore, useWishlistStore } from '../stores'
 import PageTransition from '../components/common/PageTransition'
 import toast from 'react-hot-toast'
 
@@ -13,9 +13,11 @@ export default function AuthPage({ mode = 'login' }) {
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', password: '' })
   const { login } = useAuthStore()
+  const { items: savedProductIds, setItems: setWishlistItems } = useWishlistStore()
   const navigate = useNavigate()
+  const location = useLocation()
   const [searchParams] = useSearchParams()
-  const redirect = searchParams.get('redirect') || '/'
+  const redirect = searchParams.get('redirect') || location.state?.from?.pathname || '/'
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -23,12 +25,16 @@ export default function AuthPage({ mode = 'login' }) {
     try {
       if (isLogin) {
         const { data } = await authAPI.login({ email: form.email, password: form.password })
-        login(data.data.user, data.data.accessToken)
+        login(data.data.user)
         toast.success(`Welcome back, ${data.data.user.name.split(' ')[0]}!`)
       } else {
         const { data } = await authAPI.register(form)
-        login(data.data.user, data.data.accessToken)
+        login(data.data.user)
         toast.success('Account created successfully!')
+      }
+      if (savedProductIds.length) {
+        const synced = await wishlistAPI.sync(savedProductIds)
+        setWishlistItems(synced.data.data.wishlist.map(product => product._id))
       }
       navigate(redirect)
     } catch (err) {
@@ -120,7 +126,7 @@ export default function AuthPage({ mode = 'login' }) {
                     <input
                       type={showPass ? 'text' : 'password'} required value={form.password}
                       onChange={e => setForm(f => ({...f, password: e.target.value}))}
-                      className="input-field pr-10" placeholder="••••••••" minLength={6}
+                      className="input-field pr-10" placeholder="••••••••" minLength={isLogin ? 1 : 8}
                     />
                     <button
                       type="button" onClick={() => setShowPass(s => !s)}

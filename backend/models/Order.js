@@ -15,13 +15,16 @@ const trackingEventSchema = new mongoose.Schema({
   status: { type: String, required: true },
   message: { type: String, required: true },
   location: { type: String, default: '' },
+  actor: { type: String, default: '' },
   timestamp: { type: Date, default: Date.now }
 });
 
 const orderSchema = new mongoose.Schema({
   orderNumber: { type: String, unique: true },
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  isGuest: { type: Boolean, default: true },  items: [orderItemSchema],
+  guestId: { type: String, index: true, select: false },
+  isGuest: { type: Boolean, default: true },
+  items: [orderItemSchema],
   shippingAddress: {
     name: { type: String, required: true },
     email: { type: String, required: true },
@@ -70,5 +73,6 @@ orderSchema.pre('save', async function () {
 });
 orderSchema.index({ user: 1, createdAt: -1 });
 orderSchema.index({ status: 1 });
+orderSchema.index({ orderNumber: 1, 'shippingAddress.email': 1 });
 
 module.exports = mongoose.model('Order', orderSchema);

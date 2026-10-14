@@ -1,10 +1,12 @@
 import { useParams, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Package, Truck, CheckCircle, Clock, XCircle, MapPin } from 'lucide-react'
 import { orderAPI } from '../services/api'
 import { formatPrice, formatDate, ORDER_STATUSES } from '../utils/helpers'
 import PageTransition from '../components/common/PageTransition'
+import { useAuthStore } from '../stores'
+import toast from 'react-hot-toast'
 
 const STATUS_STEPS = [
   { key: 'pending',          label: 'Order Placed',      Icon: Clock      },
@@ -16,9 +18,16 @@ const STATUS_STEPS = [
 
 export default function OrderDetailPage() {
   const { id } = useParams()
-  const { data: order, isLoading } = useQuery({
+  const { isAuthenticated } = useAuthStore()
+  const qc = useQueryClient()
+  const { data: order, isLoading, isError } = useQuery({
     queryKey: ['order', id],
-    queryFn: () => orderAPI.getOne(id).then(r => r.data.data.order),
+    queryFn: () => orderAPI.getOne(id, localStorage.getItem('guestId')).then(r => r.data.data.order),
+  })
+  const cancel = useMutation({
+    mutationFn: () => orderAPI.cancel(id, { reason: 'Cancelled by customer' }, localStorage.getItem('guestId')),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['order', id] }); qc.invalidateQueries({ queryKey: ['my-orders'] }); toast.success('Order cancelled') },
+    onError: error => toast.error(error.response?.data?.message || 'Could not cancel order')
   })
 
   if (isLoading) return (
@@ -31,7 +40,7 @@ export default function OrderDetailPage() {
     </div>
   )
 
-  if (!order) return (
+  if (isError || !order) return (
     <div className="page-container py-24 text-center">
       <p className="font-display text-3xl text-stone-200">Order not found</p>
     </div>
@@ -46,15 +55,14 @@ export default function OrderDetailPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10">
           <div>
-            <Link to="/account/orders" className="text-xs text-stone-400 hover:text-obsidian-900 transition-colors font-mono mb-2 block">
+            <Link to={isAuthenticated ? '/account' : '/orders'} className="text-xs text-stone-400 hover:text-obsidian-900 transition-colors font-mono mb-2 block">
               ← Back to Orders
             </Link>
             <h1 className="font-display text-3xl font-light">Order #{order.orderNumber}</h1>
             <p className="text-xs text-stone-400 font-mono mt-1">{formatDate(order.createdAt)}</p>
           </div>
-          <span className={`self-start sm:self-auto px-4 py-2 text-xs font-mono tracking-widest uppercase ${ORDER_STATUSES[order.status]?.bg} ${ORDER_STATUSES[order.status]?.color}`}>
-            {ORDER_STATUSES[order.status]?.label}
-          </span>
+          <div className="flex items-center gap-3"><span className={`px-4 py-2 text-xs font-mono tracking-widest uppercase ${ORDER_STATUSES[order.status]?.bg} ${ORDER_STATUSES[order.status]?.color}`}>{ORDER_STATUSES[order.status]?.label}</span>
+          {['pending', 'processing'].includes(order.status) && <button disabled={cancel.isPending} onClick={() => confirm('Cancel this order?') && cancel.mutate()} className="text-xs text-red-500 border border-red-200 px-3 py-2 hover:bg-red-50 disabled:opacity-50">{cancel.isPending ? 'Cancelling...' : 'Cancel order'}</button>}</div>
         </div>
 
         {/* Tracking Timeline */}

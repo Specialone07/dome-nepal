@@ -18,7 +18,7 @@ export default function ProductCard({ product, index = 0 }) {
   const isWishlisted = has(product._id)
   const hasMultipleImages = product.images?.length > 1
   const mainImage = product.images?.[activeImg]?.url || product.images?.[0]?.url
-  const defaultVariant = product.variants?.[0]
+  const defaultVariant = product.variants?.find(variant => variant.stock > 0)
 
   const handleAddToCart = (e) => {
     e.preventDefault()
@@ -78,7 +78,7 @@ export default function ProductCard({ product, index = 0 }) {
 
           {/* Badges */}
           <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
-            {product.isNew && <span className="badge-new">New</span>}
+            {product.newArrival && <span className="badge-new">New</span>}
             {product.discountPercent > 0 && (
               <span className="badge bg-red-500 text-white">-{product.discountPercent}%</span>
             )}

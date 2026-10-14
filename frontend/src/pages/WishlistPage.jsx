@@ -1,15 +1,16 @@
 import { motion, AnimatePresence } from 'framer-motion'
+import { useEffect } from 'react'
 import { Heart, ShoppingBag } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useWishlistStore, useAuthStore } from '../stores'
-import { wishlistAPI } from '../services/api'
+import { wishlistAPI, productAPI } from '../services/api'
 import ProductCard from '../components/product/ProductCard'
 import { ProductCardSkeleton } from '../components/common/Skeletons'
 import PageTransition from '../components/common/PageTransition'
 
 export default function WishlistPage() {
-  const { items: localIds } = useWishlistStore()
+  const { items: localIds, setItems } = useWishlistStore()
   const { isAuthenticated } = useAuthStore()
 
   const { data: serverWishlist, isLoading } = useQuery({
@@ -18,7 +19,17 @@ export default function WishlistPage() {
     enabled: isAuthenticated,
   })
 
-  const products = isAuthenticated ? (serverWishlist || []) : []
+  const { data: guestWishlist = [], isLoading: guestLoading } = useQuery({
+    queryKey: ['guest-wishlist', localIds],
+    queryFn: async () => (await Promise.all(localIds.map(id => productAPI.getOne(id).then(r => r.data.data.product).catch(() => null)))).filter(Boolean),
+    enabled: !isAuthenticated && localIds.length > 0,
+  })
+
+  useEffect(() => {
+    if (isAuthenticated && serverWishlist) setItems(serverWishlist.map(product => product._id))
+  }, [isAuthenticated, serverWishlist, setItems])
+
+  const products = isAuthenticated ? (serverWishlist || []) : guestWishlist
   const count = isAuthenticated ? products.length : localIds.length
 
   return (
@@ -32,14 +43,14 @@ export default function WishlistPage() {
           </h1>
         </div>
 
-        {!isAuthenticated ? (
+        {!isAuthenticated && localIds.length === 0 ? (
           <div className="text-center py-24 border border-stone-100">
             <Heart size={48} strokeWidth={1} className="text-stone-200 mx-auto mb-4" />
             <h2 className="font-display text-2xl text-stone-300 mb-3">Sign in to view your wishlist</h2>
             <p className="text-sm text-stone-400 mb-8">Your saved items will sync across all devices</p>
             <Link to="/login" className="btn-primary text-xs">Sign In</Link>
           </div>
-        ) : isLoading ? (
+        ) : (isLoading || guestLoading) ? (
           <div className="product-grid">
             {Array(4).fill(0).map((_, i) => <ProductCardSkeleton key={i} />)}
           </div>
@@ -53,9 +64,9 @@ export default function WishlistPage() {
             </Link>
           </div>
         ) : (
-          <div className="product-grid">
+          <><div className="product-grid">
             {products.map((p, i) => <ProductCard key={p._id} product={p} index={i} />)}
-          </div>
+          </div>{!isAuthenticated && <p className="mt-8 text-center text-xs text-stone-400">Saved on this device. <Link to="/login" className="underline text-obsidian-900">Sign in</Link> to sync your wishlist.</p>}</>
         )}
       </div>
     </PageTransition>
