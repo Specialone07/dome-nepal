@@ -12,6 +12,7 @@ import StarRating from '../components/common/StarRating'
 import ScrollReveal, { ScrollRevealGroup, ScrollRevealItem } from '../components/common/ScrollReveal'
 import PageTransition from '../components/common/PageTransition'
 import SizeGuideModal from '../components/product/SizeGuideModal'
+import { resolveColor } from '../utils/colors'
 import toast from 'react-hot-toast'
 
 // ─── Review Form ────────────────────────────────────────────────────────────────
@@ -118,9 +119,10 @@ export default function ProductDetailPage() {
   )
 
   const hasSizeChart = !!(
-    product?.sizeChart?.enabled &&
-    product?.sizeChart?.measurements?.length > 0 &&
-    product?.sizeChart?.rows?.length > 0
+    product?.sizeChart?.enabled && (
+      (product.sizeChart.measurements?.length > 0 && product.sizeChart.rows?.length > 0) ||
+      product.sizeChart.image?.url
+    )
   )
 
   // "Size Guide" button — open modal
@@ -341,7 +343,7 @@ export default function ProductDetailPage() {
                   )
                   const isOutOfStock = !variant || variant.stock === 0
                   const isSelected = selectedColor === color
-                  const hex = variant?.colorHex || '#888'
+                  const hex = resolveColor(color, variant?.colorHex)
 
                   return (
                     <motion.button

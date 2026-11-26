@@ -3,7 +3,7 @@ import { Mountain, Scissors, Leaf, HeartHandshake } from 'lucide-react'
 import InfoLayout from '../../components/common/InfoLayout'
 
 const VALUES = [
-  { Icon: Mountain, title: 'Himalayan roots', text: 'Designed in Kathmandu, inspired by the textures, colours and spirit of the mountains.' },
+  { Icon: Mountain, title: 'Proudly Nepali', text: 'Designed in Kathmandu and made in Nepal, inspired by the colours and spirit of our mountains.' },
   { Icon: Scissors, title: 'Considered craft', text: 'Small batches, careful finishing and fabrics chosen to last well beyond a season.' },
   { Icon: Leaf, title: 'Made responsibly', text: 'Local production, less waste and fewer, better pieces instead of fast fashion.' },
   { Icon: HeartHandshake, title: 'Service you can reach', text: 'Real people on call and WhatsApp, and delivery to all 77 districts.' },
@@ -12,9 +12,9 @@ const VALUES = [
 export default function AboutPage() {
   return (
     <InfoLayout eyebrow="Our story" title="Born from the Mountains" wide
-      intro="Dome Nepal is a Kathmandu clothing label bringing Himalayan heritage together with contemporary streetwear.">
+      intro="Dome Nepal is a Kathmandu clothing label making premium, Nepali-made streetwear.">
       <div className="grid md:grid-cols-2 gap-10 items-center max-w-5xl mx-auto mb-16">
-        <img src="https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=1000&q=80" alt="Dome Nepal collection" className="w-full aspect-[4/5] object-cover" loading="lazy" />
+        <img src="https://images.unsplash.com/photo-1558769132-cb1aea458c5e?w=1000&q=80" alt="Dome Nepal collection" className="w-full aspect-[4/5] object-cover" loading="lazy" />
         <div className="space-y-5 text-stone-600 leading-relaxed">
           <h2 className="font-display text-3xl font-light text-obsidian-900">Clothing for people who move between worlds</h2>
           <p>We started Dome with a simple idea: Nepali-made clothing should look as good, fit as well and feel as premium as anything you would find abroad, without leaving home to get it.</p>

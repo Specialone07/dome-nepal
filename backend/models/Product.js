@@ -63,8 +63,13 @@ const productSchema = new mongoose.Schema({
     },
     preset: {
       type: String,
-      enum: ['custom', 'tops', 'bottoms', 'dresses', 'footwear'],
+      enum: ['custom', 'tops', 'bottoms', 'dresses', 'footwear', 'tee', 'hoodie', 'jacket', 'shirt', 'sweater', 'trousers', 'shorts'],
       default: 'custom'
+    },
+    // optional picture of the shop's own size chart
+    image: {
+      url: { type: String },
+      publicId: { type: String }
     },
     measurements: [
       {

@@ -9,9 +9,9 @@
 const ZONES = {
   1: { id: 1, name: 'Kathmandu Valley', fee: 100, eta: '1–2 days' },
   2: { id: 2, name: 'Major cities', fee: 150, eta: '2–3 days' },
-  3: { id: 3, name: 'Terai & accessible hills', fee: 200, eta: '3–5 days' },
-  4: { id: 4, name: 'Remote hills', fee: 300, eta: '5–7 days' },
-  5: { id: 5, name: 'Himalayan & far-west', fee: 400, eta: '7–10 days' },
+  3: { id: 3, name: 'Terai & accessible hills', fee: 200, eta: '2–3 days' },
+  4: { id: 4, name: 'Remote hills', fee: 300, eta: '2–3 days' },
+  5: { id: 5, name: 'Mountain & far-west', fee: 400, eta: '2–3 days' },
 };
 
 // Free delivery above this subtotal applies to these zones only.

@@ -1,36 +1,40 @@
 // Size Chart Presets
+const m = (...labels) => labels.map(l => ({ key: l.toLowerCase().replace(/\s+/g, '_'), label: l }))
+
+// Each product type has its own measurements: a hoodie is measured differently from a jacket.
 export const SIZE_CHART_PRESETS = {
-  tops: {
-    measurements: [
-      { key: 'chest', label: 'Chest' },
-      { key: 'waist', label: 'Waist' },
-      { key: 'hip', label: 'Hip' },
-      { key: 'length', label: 'Length' }
-    ]
-  },
-  bottoms: {
-    measurements: [
-      { key: 'waist', label: 'Waist' },
-      { key: 'hip', label: 'Hip' },
-      { key: 'inseam', label: 'Inseam' },
-      { key: 'length', label: 'Length' }
-    ]
-  },
-  dresses: {
-    measurements: [
-      { key: 'bust', label: 'Bust' },
-      { key: 'waist', label: 'Waist' },
-      { key: 'hip', label: 'Hip' },
-      { key: 'length', label: 'Length' }
-    ]
-  },
-  footwear: {
-    measurements: [
-      { key: 'foot_length', label: 'Foot Length' },
-      { key: 'width', label: 'Width' }
-    ]
-  }
+  tee:      { label: 'T-shirt',  measurements: m('Chest', 'Length', 'Shoulder', 'Sleeve Length') },
+  hoodie:   { label: 'Hoodie',   measurements: m('Chest', 'Length', 'Shoulder', 'Sleeve Length') },
+  jacket:   { label: 'Jacket',   measurements: m('Chest', 'Length', 'Shoulder', 'Sleeve Length', 'Waist') },
+  shirt:    { label: 'Shirt',    measurements: m('Chest', 'Length', 'Shoulder', 'Sleeve Length', 'Collar') },
+  sweater:  { label: 'Sweater',  measurements: m('Chest', 'Length', 'Shoulder', 'Sleeve Length') },
+  trousers: { label: 'Trousers', measurements: m('Waist', 'Hip', 'Thigh', 'Inseam', 'Length') },
+  shorts:   { label: 'Shorts',   measurements: m('Waist', 'Hip', 'Inseam', 'Length') },
+  dresses:  { label: 'Dress',    measurements: m('Bust', 'Waist', 'Hip', 'Length') },
+  footwear: { label: 'Footwear', measurements: [{ key: 'foot_length', label: 'Foot Length' }, { key: 'width', label: 'Width' }] },
+  tops:     { label: 'Tops',     measurements: m('Chest', 'Waist', 'Hip', 'Length') },
+  bottoms:  { label: 'Bottoms',  measurements: m('Waist', 'Hip', 'Inseam', 'Length') },
 };
+
+const PRESET_BY_CATEGORY = { tops: 'tops', outerwear: 'jacket', activewear: 'tops', bottoms: 'trousers', dresses: 'dresses', footwear: 'footwear' };
+
+// Picks the right chart type from the product name/category, e.g. "Zip Hoodie" -> hoodie.
+export function guessPreset(name, category) {
+  const n = String(name || '').toLowerCase();
+  const rules = [
+    [/hood(ie|y)|sweatshirt/, 'hoodie'],
+    [/jacket|puffer|windbreaker|bomber|coat|parka|fleece|gilet|vest|blazer/, 'jacket'],
+    [/sweater|pullover|cardigan|knit/, 'sweater'],
+    [/t-?shirt|\btees?\b|tank/, 'tee'],
+    [/shirt|polo/, 'shirt'],
+    [/\bshorts\b|\bshort\b(?!\s*sleeve)/, 'shorts'],
+    [/pant|trouser|jogger|jean|cargo|denim|chino|legging|track/, 'trousers'],
+    [/dress|gown|skirt/, 'dresses'],
+    [/shoe|sneaker|boot|sandal|slipper/, 'footwear'],
+  ];
+  for (const [re, preset] of rules) if (re.test(n)) return preset;
+  return PRESET_BY_CATEGORY[category] || '';
+}
 
 export const DEFAULT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
 
@@ -122,6 +126,7 @@ export function normalizeSizeChartFromAPI(apiData) {
     enabled: apiData.enabled || false,
     unit: apiData.unit || 'in',
     preset: apiData.preset || 'custom',
+    image: apiData.image?.url ? { url: apiData.image.url, publicId: apiData.image.publicId || '' } : null,
     measurements: Array.isArray(apiData.measurements) ? apiData.measurements : [],
     rows: Array.isArray(apiData.rows) ? apiData.rows.map(row => ({
       size: row.size,

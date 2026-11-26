@@ -5,7 +5,7 @@ import PageTransition from './PageTransition'
 export default function InfoLayout({ eyebrow, title, intro, updated, children, wide = false }) {
   useEffect(() => {
     document.title = `${title} — Dome Nepal`
-    return () => { document.title = 'Dome Nepal — Premium Himalayan Streetwear' }
+    return () => { document.title = 'Dome Nepal — Premium Nepali-Made Streetwear' }
   }, [title])
 
   return (

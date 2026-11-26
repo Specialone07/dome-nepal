@@ -10,9 +10,9 @@ import ScrollReveal, { ScrollRevealGroup, ScrollRevealItem } from '../components
 import PageTransition from '../components/common/PageTransition'
 
 const CATEGORIES = [
-  { label: 'Tops', slug: 'tops', desc: 'Refined essentials', img: 'https://res.cloudinary.com/dddf2zjgt/image/upload/v1777818434/dome-nepal/cpkk2zu4o57x89ugxjsk.jpg' },
-  { label: 'Outerwear', slug: 'outerwear', desc: 'Statement pieces', img: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=600&q=80' },
-  { label: 'Bottoms', slug: 'bottoms', desc: 'Modern silhouettes', img: 'https://res.cloudinary.com/dddf2zjgt/image/upload/v1777565929/dome-nepal/zhpjoxvzqzg7i86xqeo2.jpg' },
+  { label: 'Tops', slug: 'tops', desc: 'Refined essentials', img: 'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=800&q=80' },
+  { label: 'Outerwear', slug: 'outerwear', desc: 'Statement pieces', img: 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?w=800&q=80' },
+  { label: 'Bottoms', slug: 'bottoms', desc: 'Modern silhouettes', img: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?w=800&q=80' },
   // { label: 'Accessories', slug: 'accessories', desc: 'Finishing touches', img: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=600&q=80' },
 ]
 
@@ -27,7 +27,7 @@ function HeroSection() {
       {/* Parallax BG */}
       <motion.div className="absolute inset-0" style={{ y }}>
         <img
-          src="https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=1800&q=85"
+          src="https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=2200&q=85"
           alt="Hero"
           className="w-full h-[115%] object-cover object-center"
         />
@@ -55,7 +55,7 @@ function HeroSection() {
             <em className="italic text-gold-300">Mountains</em>
           </h1>
           <p className="font-body text-sm md:text-base text-cream-100/70 max-w-md mt-6 mb-10 leading-relaxed">
-            Clothing crafted for those who move between worlds. Premium Himalayan heritage meets contemporary design.
+            Clothing made for those who move between worlds. Designed in Kathmandu, proudly Nepali-made, built for every day.
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
             <Link to="/shop">
@@ -139,7 +139,7 @@ export default function HomePage() {
           </div>
         </ScrollReveal>
 
-        <ScrollRevealGroup className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <ScrollRevealGroup className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-6xl mx-auto">
           {CATEGORIES.map((cat) => (
             <ScrollRevealItem key={cat.slug}>
               <Link to={`/shop?category=${cat.slug}`} className="group block">
@@ -202,7 +202,7 @@ export default function HomePage() {
       <section className="relative py-32 overflow-hidden">
         <div className="absolute inset-0">
           <img
-            src="https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=1600&q=80"
+            src="https://images.unsplash.com/photo-1445205170230-053b83016050?w=1800&q=80"
             alt="Brand"
             className="w-full h-full object-cover"
           />
@@ -215,7 +215,7 @@ export default function HomePage() {
             <em className="italic text-gold-300">soul of every stitch</em>"
           </h2>
           <p className="font-body text-sm text-cream-50/60 max-w-2xl mx-auto mb-10 leading-relaxed">
-            Each Dome Nepal piece is a dialogue between ancient Himalayan textile traditions and modern fashion sensibility. We believe clothing should tell a story.
+            Every Dome Nepal piece is designed in Kathmandu and made by Nepali hands, with care in every stitch. We believe clothing should tell a story.
           </p>
           <Link to="/shop">
             <motion.div

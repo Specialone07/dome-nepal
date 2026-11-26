@@ -15,8 +15,10 @@ import {
   prepareSizeChartForAPI,
   getActiveRows,
   getMeasurementCount,
-  getActiveSizeCount
+  getActiveSizeCount,
+  guessPreset
 } from '../../utils/sizeChartUtils'
+import { resolveColor, isDarkColor } from '../../utils/colors'
 import toast from 'react-hot-toast'
 import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
@@ -63,11 +65,10 @@ async function shrinkImage(file) {
   const ext = keepAlpha ? 'webp' : 'jpg'
   return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.' + ext, { type })
 }
-const PRESET_BY_CATEGORY = { tops: 'tops', outerwear: 'tops', activewear: 'tops', bottoms: 'bottoms', dresses: 'dresses', footwear: 'footwear' }
 
 function ColorDot({ color, size = 16 }) {
-  const hex = COLOR_PRESETS[color] || color || '#ccc'
-  const isDark = hex === '#1a1a1a' || hex === '#1b2a4a'
+  const hex = resolveColor(color)
+  const isDark = isDarkColor(hex)
   return (
     <span
       style={{
@@ -570,7 +571,7 @@ function flattenColorGroups(colorGroups, productName = '') {
       flat.push({
         size,
         color: group.color,
-        colorHex: COLOR_PRESETS[group.color] || '#000000',
+        colorHex: resolveColor(group.color),
         stock: Number(group.sizes[size] || 0),
         imageId: group.imageId || '',
         sku: [slugPart(productName) || 'DOME', slugPart(group.color), size].filter(Boolean).join('-'),
@@ -702,6 +703,41 @@ function SizeChartPreview({ sizeChart, onClose }) {
       </motion.div>
     </motion.div>
   );
+}
+
+function ChartImageField({ sizeChart, setSizeChart, disabled }) {
+  const ref = useRef(null)
+  const shown = sizeChart.imageFile ? sizeChart.imagePreview : sizeChart.image?.url
+  const pick = (e) => {
+    const f = e.target.files?.[0]
+    e.target.value = ''
+    if (!f) return
+    if (!isImageFile(f)) return toast.error('Choose an image file')
+    if (f.size > MAX_IMAGE_MB * 1024 * 1024) return toast.error(`Image must be under ${MAX_IMAGE_MB} MB`)
+    setSizeChart(sc => ({ ...sc, imageFile: f, imagePreview: URL.createObjectURL(f) }))
+  }
+  const clear = () => setSizeChart(sc => ({ ...sc, imageFile: null, imagePreview: '', image: null }))
+  return (
+    <div>
+      <p className="text-[9px] font-mono text-stone-400 uppercase tracking-wider mb-1.5">SIZE CHART IMAGE (OPTIONAL)</p>
+      <div className="flex items-center gap-3">
+        {shown ? (
+          <div className="relative w-20 h-24 rounded-lg overflow-hidden border border-stone-200 bg-stone-50">
+            <img src={shown} alt="Size chart" className="w-full h-full object-contain" onError={e => { e.currentTarget.style.opacity = 0.2 }} />
+            <button type="button" onClick={clear} disabled={disabled} className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center"><X size={8} /></button>
+          </div>
+        ) : null}
+        <div>
+          <input ref={ref} type="file" accept="image/*" onChange={pick} className="hidden" disabled={disabled} />
+          <button type="button" disabled={disabled} onClick={() => ref.current?.click()}
+            className="px-3 py-2 rounded-lg text-[11px] border border-dashed border-stone-300 text-stone-600 hover:border-stone-700 transition-colors flex items-center gap-2">
+            <Upload size={12} /> {shown ? 'Replace image' : 'Upload your own size chart image'}
+          </button>
+          <p className="text-[10px] text-stone-400 mt-1.5 max-w-xs">Shown to customers in the size guide. Use it instead of the table, or together with it.</p>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function SizeChartBuilder({ sizeChart, setSizeChart, disabled = false }) {
@@ -926,13 +962,15 @@ function SizeChartBuilder({ sizeChart, setSizeChart, disabled = false }) {
                   <div className="flex gap-1 flex-wrap">
                     {Object.keys(SIZE_CHART_PRESETS).map(key => (
                       <button key={key} type="button" onClick={() => handlePresetClick(key)}
-                        className="px-2.5 py-1.5 rounded-lg text-[10px] border border-stone-200 text-stone-500 hover:border-stone-800 hover:text-stone-800 transition-colors capitalize">
-                        {key}
+                        className={`px-2.5 py-1.5 rounded-lg text-[10px] border transition-colors ${sizeChart.preset === key ? 'bg-stone-900 text-white border-stone-900' : 'border-stone-200 text-stone-500 hover:border-stone-800 hover:text-stone-800'}`}>
+                        {SIZE_CHART_PRESETS[key].label || key}
                       </button>
                     ))}
                   </div>
                 </div>
               </div>
+
+              <ChartImageField sizeChart={sizeChart} setSizeChart={setSizeChart} disabled={disabled} />
 
               {/* Measurement columns */}
               <div>
@@ -1257,24 +1295,33 @@ function ProductFormModal({ product, onClose }) {
     product?.sizeChart ? inflateSizeChart(product.sizeChart) : buildDefaultSizeChart()
   )
 
-  // Keep the size chart in step with the product: pick a preset for the category and
-  // make sure there is a row for every size that is in stock-tracking.
+  // Keep the size chart in step with the product: choose the chart type from the name/category
+  // (hoodie, jacket, trousers ...) until the owner starts typing values, and make sure there
+  // is a row for every size being sold.
+  const autoPreset = useRef('')
   useEffect(() => {
-    if (!sizeChart.enabled) return
-    setSizeChart(sc => {
-      let next = sc
-      if (!next.measurements.length && PRESET_BY_CATEGORY[form.category]) next = applyPreset(PRESET_BY_CATEGORY[form.category], next)
-      const sizes = SIZES.filter(sz => colorGroups.some(g => g.sizes[sz] !== ''))
-      const have = new Set(next.rows.map(r => r.size))
-      const missing = sizes.filter(sz => !have.has(sz))
-      if (!missing.length) return next
+    const sc = sizeChart
+    if (!sc.enabled) return
+    let next = sc
+    const guess = guessPreset(form.name, form.category)
+    const untouched = !sc.rows.some(r => Object.values(r.values || {}).some(v => String(v).trim()))
+    const canAuto = !sc.measurements.length || (sc.preset === autoPreset.current && untouched)
+    if (guess && canAuto && sc.preset !== guess) {
+      next = applyPreset(guess, next)
+      autoPreset.current = guess
+    }
+    const sizes = SIZES.filter(sz => colorGroups.some(g => g.sizes[sz] !== ''))
+    const have = new Set(next.rows.map(r => r.size))
+    const missing = sizes.filter(sz => !have.has(sz))
+    if (missing.length) {
       const blank = Object.fromEntries(next.measurements.map(m => [m.key, '']))
       const rows = [...next.rows, ...missing.map(size => ({ size, active: true, values: { ...blank } }))]
       const order = sz => { const i = SIZES.indexOf(sz); return i < 0 ? 99 : i }
-      rows.sort((a, b) => order(a.size) - order(b.size))
-      return { ...next, rows }
-    })
-  }, [sizeChart.enabled, sizeChart.measurements.length, colorGroups, form.category])
+      rows.sort((x, y) => order(x.size) - order(y.size))
+      next = { ...next, rows }
+    }
+    if (next !== sc) setSizeChart(next)
+  }, [sizeChart, colorGroups, form.category, form.name])
 
   // Loading states
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -1380,6 +1427,23 @@ function ProductFormModal({ product, onClose }) {
 
      
     // Step 2: Prepare product data with final image URLs
+      // Size chart image (optional): upload now so it is saved with the product
+      let chartImage = sizeChart.image?.url ? { url: sizeChart.image.url, publicId: sizeChart.image.publicId || '' } : null
+      if (sizeChart.enabled && sizeChart.imageFile) {
+        setSubmitStatus('uploading')
+        setUploadProgress({ current: 0, total: 1 })
+        const chartForm = new FormData()
+        chartForm.append('images', await shrinkImage(sizeChart.imageFile))
+        const chartRes = await api.post('/upload', chartForm, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          onUploadProgress: (p) => setUploadProgress({ current: Math.round((p.loaded * 100) / (p.total || p.loaded || 1)), total: 1 })
+        })
+        const up = chartRes.data.data?.images?.[0]
+        if (!up?.url) throw new Error('Could not upload the size chart image')
+        chartImage = { url: up.url, publicId: up.publicId || '' }
+        setSizeChart(sc => ({ ...sc, image: chartImage, imageFile: null, imagePreview: '' }))
+      }
+
       setSubmitStatus(isEdit ? 'updating' : 'creating')
       
       const formData = new FormData()
@@ -1394,16 +1458,24 @@ function ProductFormModal({ product, onClose }) {
       if (chartPayload.enabled) {
         const availableSizes = new Set(flatVariants.map(variant => variant.size))
         chartPayload.rows = chartPayload.rows.filter(row => availableSizes.has(row.size))
-        if (!chartPayload.measurements.length) {
-          throw new Error('Add at least one measurement column to the size chart, or turn it off')
+        const tableHasData = chartPayload.rows.some(r => chartPayload.measurements.some(m => String(r.values?.[m.key] ?? '').trim()))
+        if (chartImage && !tableHasData) {
+          // image-only size chart
+          chartPayload.measurements = []
+          chartPayload.rows = []
+        } else {
+          if (!chartPayload.measurements.length) {
+            throw new Error('Add at least one measurement column to the size chart, or upload a size chart image')
+          }
+          if (!chartPayload.rows.length) {
+            throw new Error('The size chart needs at least one row matching an enabled product size')
+          }
+          const empty = chartPayload.rows.find(r => !chartPayload.measurements.some(m => String(r.values?.[m.key] ?? '').trim()))
+          if (empty) {
+            throw new Error(`Size chart: add at least one measurement for size ${empty.size}`)
+          }
         }
-        if (!chartPayload.rows.length) {
-          throw new Error('The size chart needs at least one row matching an enabled product size')
-        }
-        const empty = chartPayload.rows.find(r => !chartPayload.measurements.some(m => String(r.values?.[m.key] ?? '').trim()))
-        if (empty) {
-          throw new Error(`Size chart: add at least one measurement for size ${empty.size}`)
-        }
+        if (chartImage) chartPayload.image = chartImage
       }
       formData.append('sizeChart', JSON.stringify(chartPayload))
 

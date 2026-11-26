@@ -4,6 +4,13 @@ const Product = require('../models/Product');
 const { cloudinary } = require('../config/cloudinary');
 
 
+const CHART_PRESETS = ['custom', 'tops', 'bottoms', 'dresses', 'footwear', 'tee', 'hoodie', 'jacket', 'shirt', 'sweater', 'trousers', 'shorts'];
+
+const sanitizeChartImage = (img) =>
+  img && typeof img.url === 'string' && /^https?:\/\//.test(img.url)
+    ? { url: img.url, publicId: String(img.publicId || '') }
+    : undefined;
+
 // Clean an images array coming from the admin form. Keeps only valid entries.
 const sanitizeImages = (list, fallbackAlt = '') =>
   (Array.isArray(list) ? list : [])
@@ -408,7 +415,7 @@ const createProduct = asyncHandler(async (req, res) => {
           if (!sizeChart.unit || !['in', 'cm'].includes(sizeChart.unit)) {
             sizeChart.unit = 'in';
           }
-          if (!sizeChart.preset || !['custom', 'tops', 'bottoms', 'dresses', 'footwear'].includes(sizeChart.preset)) {
+          if (!sizeChart.preset || !CHART_PRESETS.includes(sizeChart.preset)) {
             sizeChart.preset = 'custom';
           }
           
@@ -453,6 +460,7 @@ const createProduct = asyncHandler(async (req, res) => {
           }
         }
         
+        sizeChart.image = sizeChart.enabled ? sanitizeChartImage(sizeChart.image) : undefined;
         data.sizeChart = sizeChart;
       } catch (err) {
         console.log('Size chart parse error:', err.message);
@@ -629,7 +637,7 @@ const updateProduct = asyncHandler(async (req, res) => {
           if (!sizeChart.unit || !['in', 'cm'].includes(sizeChart.unit)) {
             sizeChart.unit = 'in';
           }
-          if (!sizeChart.preset || !['custom', 'tops', 'bottoms', 'dresses', 'footwear'].includes(sizeChart.preset)) {
+          if (!sizeChart.preset || !CHART_PRESETS.includes(sizeChart.preset)) {
             sizeChart.preset = 'custom';
           }
           
@@ -674,6 +682,11 @@ const updateProduct = asyncHandler(async (req, res) => {
           }
         }
         
+        sizeChart.image = sizeChart.enabled ? sanitizeChartImage(sizeChart.image) : undefined;
+        const oldChartImage = existingProduct.sizeChart?.image;
+        if (oldChartImage?.publicId && oldChartImage.publicId !== sizeChart.image?.publicId) {
+          try { await cloudinary.uploader.destroy(oldChartImage.publicId); } catch (err) { console.log('Cloudinary delete failed:', err.message); }
+        }
         data.sizeChart = sizeChart;
       } catch (err) {
         console.log('Size chart parse error:', err.message);

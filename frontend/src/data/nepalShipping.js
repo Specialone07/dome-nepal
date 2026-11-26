@@ -17,19 +17,19 @@ export const NEPAL_SHIPPING = {
       "id": 3,
       "name": "Terai & accessible hills",
       "fee": 200,
-      "eta": "3–5 days"
+      "eta": "2–3 days"
     },
     {
       "id": 4,
       "name": "Remote hills",
       "fee": 300,
-      "eta": "5–7 days"
+      "eta": "2–3 days"
     },
     {
       "id": 5,
-      "name": "Himalayan & far-west",
+      "name": "Mountain & far-west",
       "fee": 400,
-      "eta": "7–10 days"
+      "eta": "2–3 days"
     }
   ],
   "freeShippingThreshold": 5000,
