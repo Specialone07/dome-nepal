@@ -88,6 +88,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 
 app.use('/api/orders', orderRoutes);
+app.get('/api/shipping/rates', (req, res) => res.json({ success: true, data: require('./utils/nepalShipping').buildPublicTable() }));
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/wishlist', wishlistRoutes);
 

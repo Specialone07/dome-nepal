@@ -79,8 +79,8 @@ export default function ProductCard({ product, index = 0 }) {
           {/* Badges */}
           <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
             {product.newArrival && <span className="badge-new">New</span>}
-            {product.discountPercent > 0 && (
-              <span className="badge bg-red-500 text-white">-{product.discountPercent}%</span>
+            {product.comparePrice > product.price && (
+              <span className="badge bg-red-500 text-white">-{Math.round((1 - product.price / product.comparePrice) * 100)}%</span>
             )}
             {product.isBestSeller && <span className="badge bg-obsidian-900 text-cream-50">Best Seller</span>}
           </div>
@@ -135,12 +135,9 @@ export default function ProductCard({ product, index = 0 }) {
                   )}
                 </AnimatePresence>
               </motion.button>
-              <Link
-                to={`/products/${product.slug}`}
-                className="w-11 flex items-center justify-center py-3 hover:bg-obsidian-900 hover:text-white transition-colors text-obsidian-900"
-              >
+              <span className="w-11 flex items-center justify-center py-3 hover:bg-obsidian-900 hover:text-white transition-colors text-obsidian-900" aria-hidden="true">
                 <Eye size={14} />
-              </Link>
+              </span>
             </div>
           </motion.div>
 

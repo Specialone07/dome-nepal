@@ -6,8 +6,7 @@ const Product = require('../models/Product');
 const Coupon = require('../models/Coupon');
 const { sendOrderNotifications } = require('../services/notificationService');
 
-const FREE_SHIPPING_THRESHOLD = 5000;
-const SHIPPING_FEE = 180;
+const { getShipping, findDistrict } = require('../utils/nepalShipping');
 const STATUSES = ['pending', 'processing', 'shipped', 'out_for_delivery', 'delivered', 'cancelled', 'refunded'];
 const STATUS_TRANSITIONS = {
   pending: ['processing', 'cancelled'], processing: ['shipped', 'cancelled'],
@@ -34,11 +33,17 @@ const normalizeItems = (input) => {
   return [...grouped.values()];
 };
 
+const NEPAL_PHONE = /^(?:\+?977[-\s]?)?(?:9[678]\d{8}|0?1\d{7}|0\d{2}[-\s]?\d{6})$/;
+
 const validateAddress = (address) => {
-  const required = ['name', 'email', 'phone', 'street', 'city', 'state', 'country'];
+  const required = ['name', 'email', 'phone', 'street', 'city', 'district'];
   if (!address || required.some(field => !String(address[field] || '').trim())) throw fail('Incomplete shipping details');
   if (!/^\S+@\S+\.\S+$/.test(address.email)) throw fail('Enter a valid email address');
-  return Object.fromEntries(Object.entries(address).map(([key, value]) => [key, typeof value === 'string' ? value.trim() : value]));
+  if (!NEPAL_PHONE.test(String(address.phone).trim())) throw fail('Enter a valid Nepal phone number');
+  const district = findDistrict(address.district);
+  if (!district) throw fail('Select a valid Nepal district');
+  const clean = Object.fromEntries(Object.entries(address).map(([key, value]) => [key, typeof value === 'string' ? value.trim() : value]));
+  return { ...clean, district: district.name, state: district.province, country: 'Nepal' };
 };
 
 const findCoupon = async (code, subtotal, session) => {
@@ -51,7 +56,7 @@ const findCoupon = async (code, subtotal, session) => {
   return coupon;
 };
 
-const buildPricing = async (input, couponCode, session) => {
+const buildPricing = async (input, couponCode, session, districtName) => {
   const requested = normalizeItems(input);
   const ids = [...new Set(requested.map(item => item.product))];
   const products = await Product.find({ _id: { $in: ids }, isActive: true }).session(session || null);
@@ -66,25 +71,34 @@ const buildPricing = async (input, couponCode, session) => {
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const coupon = await findCoupon(couponCode, subtotal, session);
   const discount = coupon ? coupon.calculateDiscount(subtotal) : 0;
-  const shippingPrice = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE;
-  return { items, subtotal, shippingPrice, taxPrice: 0, discount, totalPrice: subtotal + shippingPrice - discount, coupon };
+  const shipping = districtName ? getShipping(districtName, subtotal) : null;
+  if (districtName && !shipping) throw fail('Select a valid Nepal district');
+  const shippingPrice = shipping?.fee ?? 0;
+  return { items, subtotal, shippingPrice, shipping, taxPrice: 0, discount, totalPrice: subtotal + shippingPrice - discount, coupon };
 };
 
 const quoteOrder = asyncHandler(async (req, res) => {
-  const p = await buildPricing(req.body.items, req.body.couponCode);
-  res.json({ success: true, data: { subtotal: p.subtotal, shippingPrice: p.shippingPrice, taxPrice: p.taxPrice, discount: p.discount, totalPrice: p.totalPrice, couponCode: p.coupon?.code || '' } });
+  const p = await buildPricing(req.body.items, req.body.couponCode, null, req.body.district);
+  res.json({ success: true, data: { subtotal: p.subtotal, shippingPrice: p.shippingPrice, shipping: p.shipping, shippingPending: !p.shipping, taxPrice: p.taxPrice, discount: p.discount, totalPrice: p.totalPrice, couponCode: p.coupon?.code || '' } });
 });
 
 const createOrder = asyncHandler(async (req, res) => {
   const shippingAddress = validateAddress(req.body.shippingAddress);
   const paymentMethod = String(req.body.paymentMethod || 'cash_on_delivery');
-  if (paymentMethod !== 'cash_on_delivery') throw fail('This payment method is not available yet');
+  if (!['cash_on_delivery', 'fonepay_qr'].includes(paymentMethod)) throw fail('This payment method is not available');
+  let paymentResult;
+  if (paymentMethod === 'fonepay_qr') {
+    const reference = String(req.body.paymentReference || '').trim();
+    if (!/^[A-Za-z0-9-]{6,40}$/.test(reference)) throw fail('Enter the transaction ID shown on your FonePay payment receipt');
+    if (await Order.exists({ 'paymentResult.id': reference, paymentMethod: 'fonepay_qr' })) throw fail('This transaction ID has already been used for another order', 409);
+    paymentResult = { id: reference, status: 'awaiting_verification', updateTime: new Date().toISOString(), payerName: String(req.body.payerName || '').trim().slice(0, 80) };
+  }
   const guestId = req.user ? null : String(req.headers['x-guest-id'] || crypto.randomUUID());
   const session = await mongoose.startSession();
   let order;
   try {
     await session.withTransaction(async () => {
-      const p = await buildPricing(req.body.items, req.body.couponCode, session);
+      const p = await buildPricing(req.body.items, req.body.couponCode, session, shippingAddress.district);
       for (const item of p.items) {
         const result = await Product.updateOne(
           { _id: item.product },
@@ -95,9 +109,9 @@ const createOrder = asyncHandler(async (req, res) => {
       }
       [order] = await Order.create([{
         user: req.user?._id || null, guestId, isGuest: !req.user, items: p.items, shippingAddress, paymentMethod,
-        subtotal: p.subtotal, shippingPrice: p.shippingPrice, taxPrice: p.taxPrice, discount: p.discount,
+        paymentResult, subtotal: p.subtotal, shippingPrice: p.shippingPrice, shippingZone: p.shipping.zone, deliveryEta: p.shipping.eta, taxPrice: p.taxPrice, discount: p.discount,
         couponCode: p.coupon?.code || '', totalPrice: p.totalPrice, status: 'pending',
-        trackingEvents: [{ status: 'pending', message: 'Order placed successfully', location: 'Online' }]
+        trackingEvents: [{ status: 'pending', message: paymentMethod === 'fonepay_qr' ? 'Order placed — payment awaiting verification' : 'Order placed successfully', location: 'Online' }]
       }], { session });
       if (p.coupon) { p.coupon.usedCount += 1; await p.coupon.save({ session }); }
     });
@@ -131,6 +145,7 @@ const cancelOrder = asyncHandler(async (req, res) => {
   const guest = !req.user && req.headers['x-guest-id'] && order.guestId === req.headers['x-guest-id'];
   if (!owner && !guest) throw fail('Not authorized', 403);
   if (!['pending', 'processing'].includes(order.status)) throw fail('Order can no longer be cancelled');
+  if (order.paymentMethod === 'fonepay_qr' && order.isPaid) throw fail('This order is already paid. Please contact us to cancel it so we can refund you.');
   const session = await mongoose.startSession();
   try {
     await session.withTransaction(async () => {
@@ -170,6 +185,9 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
   if (status !== previousStatus && !STATUS_TRANSITIONS[previousStatus]?.includes(status)) {
     throw fail(`Order cannot move from ${previousStatus} to ${status}`);
   }
+  if (order.paymentMethod === 'fonepay_qr' && ['processing', 'shipped', 'out_for_delivery', 'delivered'].includes(status) && !order.isPaid) {
+    throw fail('Verify the FonePay payment before fulfilling this order');
+  }
   order.status = status;
   if (status !== previousStatus || message || location) {
     order.trackingEvents.push({ status, message: String(message || `Order ${status}`).slice(0, 200), location: String(location || '').slice(0, 120), actor: req.user?.name || 'Admin' });
@@ -196,4 +214,26 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { order } });
 });
 
-module.exports = { createOrder, quoteOrder, getMyOrders, getOrder, cancelOrder, getAllOrders, updateOrderStatus };
+const verifyPayment = asyncHandler(async (req, res) => {
+  const { action, note } = req.body;
+  if (!['verify', 'reject'].includes(action)) throw fail('Invalid payment action');
+  const order = await Order.findById(req.params.id);
+  if (!order) throw fail('Order not found', 404);
+  if (order.paymentMethod !== 'fonepay_qr') throw fail('Only online payments need verification');
+  if (order.status === 'cancelled') throw fail('Order is cancelled');
+  const result = order.paymentResult || {};
+  result.note = String(note || '').slice(0, 200);
+  result.verifiedBy = req.user?.name || 'Admin';
+  result.verifiedAt = new Date();
+  if (action === 'verify') {
+    result.status = 'verified'; order.isPaid = true; order.paidAt = new Date();
+  } else {
+    result.status = 'rejected'; order.isPaid = false; order.paidAt = undefined;
+  }
+  order.paymentResult = result;
+  order.trackingEvents.push({ status: order.status, message: action === 'verify' ? 'Payment verified' : `Payment could not be verified${result.note ? `: ${result.note}` : ''}`, actor: result.verifiedBy });
+  await order.save();
+  res.json({ success: true, data: { order } });
+});
+
+module.exports = { verifyPayment, createOrder, quoteOrder, getMyOrders, getOrder, cancelOrder, getAllOrders, updateOrderStatus };

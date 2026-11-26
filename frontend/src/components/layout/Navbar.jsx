@@ -16,7 +16,7 @@ const NAV_LINKS = [
   ]},
   { label: 'Men', path: '/shop?gender=men' },
   { label: 'Women', path: '/shop?gender=women' },
-  { label: 'Sale', path: '/shop?sort=discount', highlight: true },
+  { label: 'Sale', path: '/shop?filter=sale', highlight: true },
 ]
 
 export default function Navbar() {
@@ -26,7 +26,8 @@ export default function Navbar() {
   const [searchResults, setSearchResults] = useState([])
   const [searchLoading, setSearchLoading] = useState(false)
   const { isAuthenticated, user } = useAuthStore()
-  const { itemCount, openCart } = useCartStore()
+  const openCart = useCartStore((s) => s.openCart)
+  const itemCount = useCartStore((s) => s.items.reduce((n, i) => n + i.quantity, 0))
   const { searchOpen, openSearch, closeSearch, mobileMenuOpen, openMobileMenu, closeMobileMenu } = useUIStore()
   const location = useLocation()
   const navigate = useNavigate()
@@ -73,7 +74,7 @@ export default function Navbar() {
       {/* Announcement Bar */}
       <div className="bg-obsidian-900 text-cream-50 py-2 overflow-hidden">
         <div className="flex animate-marquee whitespace-nowrap">
-          {Array(4).fill('Free shipping on orders above NPR 5,000 · Crafted in Nepal · Premium Quality Guaranteed · ').map((t, i) => (
+          {Array(4).fill('Delivery to all 77 districts · Cash on delivery & FonePay QR · Free delivery above NPR 5,000 · ').map((t, i) => (
             <span key={i} className="font-mono text-[10px] tracking-[0.25em] uppercase mx-8">{t}</span>
           ))}
         </div>

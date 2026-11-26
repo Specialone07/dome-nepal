@@ -4,6 +4,8 @@
   "description": "",
   "main": "server.js",
   "scripts": {
+    "start": "node server.js",
+    "sync:shipping": "node scripts/syncShippingData.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

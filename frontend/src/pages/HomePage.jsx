@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, useScroll, useTransform } from 'framer-motion'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowRight, ChevronDown } from 'lucide-react'
+import { ArrowRight, ChevronDown, Truck, Banknote, QrCode, RotateCcw } from 'lucide-react'
 import { productAPI } from '../services/api'
 import ProductCard from '../components/product/ProductCard'
 import { ProductCardSkeleton } from '../components/common/Skeletons'
@@ -27,7 +27,7 @@ function HeroSection() {
       {/* Parallax BG */}
       <motion.div className="absolute inset-0" style={{ y }}>
         <img
-          src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1800&q=85"
+          src="https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=1800&q=85"
           alt="Hero"
           className="w-full h-[115%] object-cover object-center"
         />
@@ -48,7 +48,7 @@ function HeroSection() {
           transition={{ duration: 1, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
         >
           <p className="font-mono text-[11px] tracking-[0.4em] uppercase text-gold-300 mb-5">
-            New Collection · Spring 2025
+            New Collection · Now Available
           </p>
           <h1 className="font-display text-6xl sm:text-7xl md:text-8xl xl:text-9xl font-light text-cream-50 leading-none mb-4">
             Born From<br />
@@ -100,7 +100,7 @@ function HeroSection() {
 }
 
 function MarqueeBar() {
-  const items = ['New Arrivals', 'Himalayan Craft', 'Premium Quality', 'Free Shipping Over NPR 5000', 'Sustainable Fashion', 'Made in Nepal']
+  const items = ['New Arrivals', 'Made in Nepal', 'Delivery to all 77 districts', 'Cash on Delivery', 'Pay by FonePay QR', 'Free delivery over NPR 5,000']
   return (
     <div className="bg-obsidian-900 py-4 overflow-hidden border-y border-obsidian-800">
       <div className="flex animate-marquee whitespace-nowrap">
@@ -142,7 +142,7 @@ export default function HomePage() {
         <ScrollRevealGroup className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {CATEGORIES.map((cat) => (
             <ScrollRevealItem key={cat.slug}>
-              <Link to="/shop" className="group block">
+              <Link to={`/shop?category=${cat.slug}`} className="group block">
                 <div className="relative overflow-hidden aspect-[3/4] mb-3">
                   <motion.img
                     src={cat.img}
@@ -152,7 +152,7 @@ export default function HomePage() {
                     className="w-full h-full object-cover"
                     loading="lazy"
                   />
-                  <div className="absolute inset-0 bg-obsidian-900/20 group-hover:bg-obsidian-900/10 transition-colors duration-500" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-obsidian-900/70 via-obsidian-900/10 to-transparent" />
                   <div className="absolute inset-0 flex flex-col items-center justify-end p-5 text-center">
                     <motion.div
                       initial={{ y: 8, opacity: 0.7 }}
@@ -255,15 +255,15 @@ export default function HomePage() {
         <div className="page-container py-12">
           <ScrollRevealGroup className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             {[
-              { icon: '🚚', title: 'Free Shipping', desc: 'On orders over NPR 5,000' },
-              { icon: '♻️', title: 'Sustainable', desc: 'Eco-conscious production' },
-              { icon: '🏔️', title: 'Made in Nepal', desc: 'Authentic Himalayan craft' },
-              { icon: '↩️', title: 'Easy Returns', desc: '30-day hassle-free returns' },
-            ].map((f) => (
-              <ScrollRevealItem key={f.title}>
-                <div className="text-2xl mb-3">{f.icon}</div>
-                <h4 className="font-body font-medium text-sm text-obsidian-900 mb-1">{f.title}</h4>
-                <p className="text-xs text-stone-400">{f.desc}</p>
+              { Icon: Truck, title: 'Delivery across Nepal', desc: 'All 77 districts, from Rs. 100' },
+              { Icon: Banknote, title: 'Cash on Delivery', desc: 'Pay when it arrives' },
+              { Icon: QrCode, title: 'FonePay QR', desc: 'Pay instantly by QR' },
+              { Icon: RotateCcw, title: 'Easy Returns', desc: '30-day hassle-free returns' },
+            ].map(({ Icon, title, desc }) => (
+              <ScrollRevealItem key={title}>
+                <Icon size={22} strokeWidth={1.25} className="mx-auto mb-3 text-gold-500" />
+                <h4 className="font-body font-medium text-sm text-obsidian-900 mb-1">{title}</h4>
+                <p className="text-xs text-stone-400">{desc}</p>
               </ScrollRevealItem>
             ))}
           </ScrollRevealGroup>

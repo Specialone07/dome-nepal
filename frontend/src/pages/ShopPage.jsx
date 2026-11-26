@@ -65,6 +65,7 @@ export default function ShopPage() {
     search: getParam('search'),
     featured: getParam('filter') === 'featured' ? 'true' : '',
     isNew: getParam('filter') === 'new' ? 'true' : '',
+    onSale: getParam('filter') === 'sale' ? 'true' : '',
   })
 
   useEffect(() => {
@@ -77,6 +78,7 @@ export default function ShopPage() {
       search: getParam('search'),
       featured: getParam('filter') === 'featured' ? 'true' : '',
       isNew: getParam('filter') === 'new' ? 'true' : '',
+      onSale: getParam('filter') === 'sale' ? 'true' : '',
       sortBy: sortBy,
       order: order,
     }))
@@ -112,7 +114,7 @@ export default function ShopPage() {
   }
 
   const clearFilters = () => {
-    setFilters({ category: '', gender: '', minPrice: '', maxPrice: '', sizes: '', sortBy: 'createdAt', order: 'desc', page: 1, limit: 16, search: '', featured: '', isNew: '' })
+    setFilters({ category: '', gender: '', minPrice: '', maxPrice: '', sizes: '', sortBy: 'createdAt', order: 'desc', page: 1, limit: 16, search: '', featured: '', isNew: '', onSale: '' })
     setSearchParams({})
   }
 

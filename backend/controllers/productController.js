@@ -52,6 +52,7 @@ const getProducts = asyncHandler(async (req, res) => {
     search,
     featured,
     isNew,
+    onSale,
     sizes,
     colors
   } = req.query;
@@ -81,6 +82,7 @@ const getProducts = asyncHandler(async (req, res) => {
   // Flags
   if (featured === 'true') filter.isFeatured = true;
   if (isNew === 'true') filter.newArrival = true;
+  if (onSale === 'true') filter.$expr = { $gt: ['$comparePrice', '$price'] };
 
   // Search
   if (search) {

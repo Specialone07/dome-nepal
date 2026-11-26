@@ -16,6 +16,13 @@ import AuthPage from './pages/AuthPage'
 import AccountPage from './pages/AccountPage'
 import OrderDetailPage from './pages/OrderDetailPage'
 import GuestOrdersPage from './pages/GuestOrdersPage'
+import NotFoundPage from './pages/NotFoundPage'
+import AboutPage from './pages/info/AboutPage'
+import ContactPage from './pages/info/ContactPage'
+import FAQPage from './pages/info/FAQPage'
+import ShippingReturnsPage from './pages/info/ShippingReturnsPage'
+import SizeGuidePage from './pages/info/SizeGuidePage'
+import { PrivacyPage, TermsPage } from './pages/info/LegalPages'
 
 import AdminLayout from './pages/admin/AdminLayout'
 import AdminDashboard from './pages/admin/AdminDashboard'
@@ -25,6 +32,7 @@ import AdminLogin from './pages/admin/AdminLogin'
 import AdminOrderDetails from './pages/admin/AdminOrderDetails'
 import AdminUsers from './pages/admin/AdminUsers'
 import AdminCoupons from './pages/admin/AdminCoupons'
+import AdminShipping from './pages/admin/AdminShipping'
 
 import { AdminRoute, ProtectedRoute } from './routes/ProtectedRoutes'
 import { useAuthStore } from './stores'
@@ -57,7 +65,7 @@ export default function App() {
   return (
     <>
       {/* ✅ GLOBAL UI (NOT ROUTE-BOUND) */}
-      <FloatingSocial />
+      {!/^\/(admin|dome-admin)/.test(location.pathname) && <FloatingSocial />}
 
       <AnimatePresence mode="wait">
         <Routes location={location} key={location.pathname}>
@@ -80,6 +88,7 @@ export default function App() {
             <Route path="orders/:id" element={<AdminOrderDetails />} />
             <Route path="users" element={<AdminUsers />} />
             <Route path="coupons" element={<AdminCoupons />} />
+            <Route path="shipping" element={<AdminShipping />} />
           </Route>
 
           {/* PUBLIC */}
@@ -95,20 +104,17 @@ export default function App() {
           <Route path="/orders" element={<MainLayout><GuestOrdersPage /></MainLayout>} />
           <Route path="/orders/:id" element={<MainLayout><OrderDetailPage /></MainLayout>} />
 
+          {/* INFO PAGES */}
+          <Route path="/about" element={<MainLayout><AboutPage /></MainLayout>} />
+          <Route path="/contact" element={<MainLayout><ContactPage /></MainLayout>} />
+          <Route path="/faq" element={<MainLayout><FAQPage /></MainLayout>} />
+          <Route path="/shipping-returns" element={<MainLayout><ShippingReturnsPage /></MainLayout>} />
+          <Route path="/size-guide" element={<MainLayout><SizeGuidePage /></MainLayout>} />
+          <Route path="/privacy" element={<MainLayout><PrivacyPage /></MainLayout>} />
+          <Route path="/terms" element={<MainLayout><TermsPage /></MainLayout>} />
+
           {/* 404 */}
-          <Route
-            path="*"
-            element={
-              <MainLayout>
-                <div className="page-container py-32 text-center">
-                  <h1 className="text-5xl text-stone-300">404</h1>
-                  <a href="/" className="btn-primary mt-6 inline-flex">
-                    Return Home
-                  </a>
-                </div>
-              </MainLayout>
-            }
-          />
+          <Route path="*" element={<MainLayout><NotFoundPage /></MainLayout>} />
 
         </Routes>
       </AnimatePresence>
