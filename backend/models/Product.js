@@ -28,7 +28,8 @@ const productSchema = new mongoose.Schema({
   images: [{
     url: { type: String, required: true },
     publicId: { type: String },
-    alt: { type: String, default: '' }
+    alt: { type: String, default: '' },
+    color: { type: String, default: '' } // links a photo to a colour variant
   }],
 
   variants: [variantSchema],
