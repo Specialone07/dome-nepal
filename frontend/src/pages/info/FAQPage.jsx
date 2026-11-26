@@ -10,7 +10,7 @@ const maxFee = Math.max(...NEPAL_SHIPPING.zones.map(z => z.fee))
 const FAQS = [
   { q: 'Do you deliver outside Kathmandu?', a: <>Yes, we deliver to all 77 districts of Nepal. Delivery costs Rs. {minFee} to Rs. {maxFee} depending on your district. See the full list on our <Link to="/shipping-returns">Shipping &amp; Returns</Link> page.</> },
   { q: 'How does cash on delivery work?', a: 'Place your order online without paying anything. When the parcel arrives, check it and pay the rider in cash. Please keep the exact amount ready.' },
-  { q: 'How long will delivery take?', a: 'Kathmandu Valley: 1–2 days. Major cities: 2–3 days. Other Terai and hill districts: 3–5 days. Remote and Himalayan districts: 5–10 days.' },
+  { q: 'How long will delivery take?', a: 'Kathmandu Valley: 1–2 days. Everywhere else in Nepal: 2–3 days.' },
   { q: 'Is delivery free?', a: `Delivery is free in Kathmandu Valley, major cities and Terai/accessible hill districts when your order is Rs. ${NEPAL_SHIPPING.freeShippingThreshold.toLocaleString()} or more. Remote districts always pay the delivery fee.` },
   { q: 'How do I track my order?', a: <>Open <Link to="/orders">Track Order</Link>. Guests can see orders placed on their device; account holders can see all orders under My Account.</> },
   { q: 'Can I cancel or change my order?', a: 'You can cancel while the order is still Pending or Processing, from the order page. Once it has shipped, please contact us.' },

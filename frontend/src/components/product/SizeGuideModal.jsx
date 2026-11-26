@@ -56,7 +56,8 @@ export default function SizeGuideModal({ isOpen, onClose, sizeChart, productName
     return () => modalRef.current?.removeEventListener('keydown', handleTab)
   }, [isOpen])
 
-  if (!sizeChart || !sizeChart.enabled || !sizeChart.measurements?.length || !sizeChart.rows?.length) {
+  const hasTable = !!(sizeChart?.measurements?.length && sizeChart?.rows?.length)
+  if (!sizeChart || !sizeChart.enabled || (!hasTable && !sizeChart.image?.url)) {
     return null
   }
 
@@ -130,16 +131,20 @@ export default function SizeGuideModal({ isOpen, onClose, sizeChart, productName
                   )}
                 </div>
 
+                {sizeChart.image?.url && (
+                  <img src={sizeChart.image.url} alt={`${productName} size chart`} className="w-full rounded-xl border border-stone-200 mb-6" />
+                )}
+
                 {activeRows.length > 0 && sizeChart.measurements.length > 0 ? (
                   <div className="overflow-x-auto -mx-6 px-6">
                     <table className="w-full text-sm border-collapse">
                       <thead>
                         <tr className="bg-stone-50 border-b-2 border-stone-200">
-                          <th className="px-4 py-3 text-left text-[10px] font-mono tracking-[0.2em] uppercase text-stone-500 w-16 sticky left-0 bg-stone-50">
+                          <th className="px-3 py-3 text-left text-[10px] font-mono tracking-[0.2em] uppercase text-stone-500 w-16 sticky left-0 bg-stone-50">
                             Size
                           </th>
                           {sizeChart.measurements.map(m => (
-                            <th key={m.key} className="px-4 py-3 text-left text-[10px] font-mono tracking-[0.2em] uppercase text-stone-500 min-w-[100px] whitespace-nowrap">
+                            <th key={m.key} className="px-3 py-3 text-left text-[10px] font-mono tracking-[0.2em] uppercase text-stone-500 min-w-[78px] whitespace-nowrap">
                               {m.label}
                               <span className="ml-1.5 normal-case text-stone-400 font-normal tracking-normal">
                                 ({sizeChart.unit})
@@ -151,13 +156,13 @@ export default function SizeGuideModal({ isOpen, onClose, sizeChart, productName
                       <tbody>
                         {activeRows.map((row, i) => (
                           <tr key={row.size} className={`${row.size === selectedSize ? 'bg-gold-300/20 ring-1 ring-inset ring-gold-400' : i % 2 === 0 ? 'bg-white' : 'bg-stone-50/50'} border-b border-stone-100 hover:bg-stone-50 transition-colors`}>
-                            <td className="px-4 py-3 sticky left-0 bg-inherit">
+                            <td className="px-3 py-3 sticky left-0 bg-inherit">
                               <span className="font-mono text-sm font-semibold text-stone-900 bg-stone-100 px-3 py-1.5 rounded-lg inline-block">
                                 {row.size}
                               </span>
                             </td>
                             {sizeChart.measurements.map(m => (
-                              <td key={m.key} className="px-4 py-3 text-stone-600 font-mono text-sm">
+                              <td key={m.key} className="px-3 py-3 text-stone-600 font-mono text-sm">
                                 {row.values?.[m.key] || '—'}
                               </td>
                             ))}
@@ -166,7 +171,7 @@ export default function SizeGuideModal({ isOpen, onClose, sizeChart, productName
                       </tbody>
                     </table>
                   </div>
-                ) : (
+                ) : sizeChart.image?.url ? null : (
                   <div className="text-center py-12">
                     <Ruler size={48} className="text-stone-200 mx-auto mb-4" />
                     <p className="text-stone-400">No size chart data available</p>

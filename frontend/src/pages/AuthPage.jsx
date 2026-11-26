@@ -59,7 +59,7 @@ export default function AuthPage({ mode = 'login' }) {
               Dress with<br /><em className="italic text-gold-300">Intention</em>
             </h2>
             <p className="text-cream-50/60 text-sm max-w-sm">
-              Premium fashion rooted in Himalayan heritage, designed for the modern explorer.
+              Premium fashion, designed and made in Nepal, for the modern explorer.
             </p>
           </div>
         </div>
