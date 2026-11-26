@@ -32,7 +32,37 @@ const COLOR_PRESETS = {
 
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
 const MAX_IMAGES = 10
-const MAX_IMAGE_MB = 10
+const MAX_IMAGE_MB = 60 // raw files can be big phone/camera photos; they are shrunk before upload
+const MAX_EDGE = 2400 // longest side after shrinking
+const PLACEHOLDER_PREVIEW = 'data:image/svg+xml;utf8,' + encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' width='160' height='200'><rect width='160' height='200' fill='#f5efe0'/><text x='80' y='105' font-size='13' text-anchor='middle' fill='#8a7a4e' font-family='sans-serif'>Photo ready</text></svg>")
+
+const isImageFile = f => f.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|avif|heic|heif|bmp|tiff?)$/i.test(f.name)
+
+// Returns an ImageBitmap if this browser can decode the file (HEIC usually can't outside Safari).
+async function decodeImage(file) {
+  try { return await createImageBitmap(file) } catch { return null }
+}
+
+// Shrinks large photos and converts them to a web-friendly format. Files the browser can't
+// decode are sent untouched and converted by the server.
+async function shrinkImage(file) {
+  const bitmap = await decodeImage(file)
+  if (!bitmap) return file
+  const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height))
+  const smallEnough = scale === 1 && file.size <= 3 * 1024 * 1024 && /^image\/(jpe?g|webp)$/.test(file.type)
+  if (smallEnough) { bitmap.close?.(); return file }
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round(bitmap.width * scale)
+  canvas.height = Math.round(bitmap.height * scale)
+  canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+  bitmap.close?.()
+  const keepAlpha = /^image\/(png|gif|avif)$/.test(file.type)
+  const type = keepAlpha ? 'image/webp' : 'image/jpeg'
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, type, 0.88))
+  if (!blob) return file
+  const ext = keepAlpha ? 'webp' : 'jpg'
+  return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.' + ext, { type })
+}
 const PRESET_BY_CATEGORY = { tops: 'tops', outerwear: 'tops', activewear: 'tops', bottoms: 'bottoms', dresses: 'dresses', footwear: 'footwear' }
 
 function ColorDot({ color, size = 16 }) {
@@ -138,15 +168,32 @@ function DropzoneArea({ images, setImages, variantColors, disabled = false }) {
   const [cropping, setCropping] = useState(null)
 
   const processFiles = (incoming) => {
-    const okType = f => /^image\/(jpe?g|png|webp)$/.test(f.type)
+    const okType = isImageFile
     const okSize = f => f.size <= MAX_IMAGE_MB * 1024 * 1024
     const rejectedType = incoming.filter(f => !okType(f))
     const rejectedSize = incoming.filter(f => okType(f) && !okSize(f))
-    if (rejectedType.length) toast.error(`${rejectedType.length} file(s) skipped — only JPG, PNG or WEBP images`)
-    if (rejectedSize.length) toast.error(`${rejectedSize.length} file(s) skipped — each image must be under ${MAX_IMAGE_MB} MB`)
+    if (rejectedType.length) toast.error(`${rejectedType.length} file(s) skipped — they are not photos`)
+    if (rejectedSize.length) toast.error(`${rejectedSize.length} file(s) skipped — each photo must be under ${MAX_IMAGE_MB} MB`)
     let files = incoming.filter(f => okType(f) && okSize(f))
     const room = MAX_IMAGES - images.length
     if (files.length > room) { toast.error(`You can add at most ${MAX_IMAGES} images per product`); files = files.slice(0, Math.max(0, room)) }
+    if (!files.length) return
+    ;(async () => {
+      const decodable = []
+      for (const f of files) {
+        const bmp = await decodeImage(f)
+        if (bmp) { bmp.close?.(); decodable.push(f) }
+        else {
+          const hint = variantColors.length === 1 ? variantColors[0] : ''
+          setImages(prev => [...prev, { file: f, preview: PLACEHOLDER_PREVIEW, color: hint, id: Date.now() + Math.random() }])
+          toast('Preview is not available for this photo type — it will be converted when you save', { icon: 'ℹ️' })
+        }
+      }
+      queueForCrop(decodable)
+    })()
+  }
+
+  const queueForCrop = (files) => {
     if (!files.length) return
     const newQueue = files.map(f => ({ src: URL.createObjectURL(f), filename: f.name, rawFile: f }))
     setCropQueue(prev => [...prev, ...newQueue])
@@ -160,7 +207,7 @@ function DropzoneArea({ images, setImages, variantColors, disabled = false }) {
   const handleDrop = (e) => {
     if (disabled) return
     e.preventDefault(); setIsDragging(false)
-    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'))
+    const files = Array.from(e.dataTransfer.files).filter(isImageFile)
     if (files.length) processFiles(files)
   }
 
@@ -219,7 +266,7 @@ function DropzoneArea({ images, setImages, variantColors, disabled = false }) {
           {disabled ? 'Image upload disabled during processing' : 
           isDragging ? 'Drop to add images' : 'Drag & drop images, or click to browse'}
         </p>
-        <p className="text-[10px] text-stone-400 mt-1">PNG, JPG, WEBP — Each image will be cropped</p>
+        <p className="text-[10px] text-stone-400 mt-1">Any photo — JPG, PNG, WEBP, HEIC and more. Big photos are shrunk automatically.</p>
       </div>
 
       <AnimatePresence>
@@ -1293,11 +1340,10 @@ function ProductFormModal({ product, onClose }) {
         setUploadProgress({ current: 0, total: totalImagesToUpload })
 
         const uploadFormData = new FormData()
-        newImages.forEach(img => {
-          if (img.file) {
-            uploadFormData.append('images', img.file)
-          }
-        })
+        for (const img of newImages) {
+          const ready = await shrinkImage(img.file)
+          uploadFormData.append('images', ready)
+        }
 
         
         const uploadResponse = await api.post('/upload', uploadFormData, {
