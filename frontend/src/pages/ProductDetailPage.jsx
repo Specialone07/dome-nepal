@@ -281,7 +281,7 @@ export default function ProductDetailPage() {
                 </span>
               )}
               {product.comparePrice > product.price && (
-                <span className="badge-sale">Save {product.discountPercent}%</span>
+                <span className="badge-sale">Save {Math.round((1 - product.price / product.comparePrice) * 100)}%</span>
               )}
             </div>
 
@@ -294,10 +294,10 @@ export default function ProductDetailPage() {
                   <button
                     type="button"
                     onClick={handleOpenSizeGuide}
-                    className="flex items-center gap-1.5 text-xs text-stone-400 hover:text-obsidian-900 underline underline-offset-2 transition-colors"
+                    className="flex items-center gap-1.5 text-[11px] tracking-[0.1em] uppercase text-obsidian-900 border border-stone-300 hover:border-obsidian-900 px-3 py-1.5 transition-colors"
                   >
-                    <Ruler size={11} />
-                    Size Guide
+                    <Ruler size={12} />
+                    Size chart
                   </button>
                 ) : null}
               </div>
@@ -351,9 +351,9 @@ export default function ProductDetailPage() {
                       onClick={() => {
                         if (isOutOfStock) return
                         setSelectedColor(color)
-                        const imageIndex = product.images.findIndex(img =>
-                          img.url.toLowerCase().includes(color.toLowerCase())
-                        )
+                        const wanted = color.toLowerCase()
+                        let imageIndex = product.images.findIndex(img => (img.color || '').toLowerCase() === wanted)
+                        if (imageIndex === -1) imageIndex = product.images.findIndex(img => img.url.toLowerCase().includes(wanted))
                         if (imageIndex !== -1) setActiveImg(imageIndex)
                       }}
                       disabled={isOutOfStock}
@@ -560,6 +560,7 @@ export default function ProductDetailPage() {
         onClose={() => setSizeGuideOpen(false)}
         sizeChart={product?.sizeChart}
         productName={product?.name}
+        selectedSize={selectedSize}
       />
     </PageTransition>
   )

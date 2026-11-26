@@ -147,6 +147,8 @@ export const orderAPI = {
   }),
   updateStatus: (id, data) =>
     api.patch(`/orders/${id}/status`, data),
+  verifyPayment: (id, data) =>
+    api.patch(`/orders/${id}/payment`, data),
 
   getAll: (params) => api.get('/orders', { params })
 }

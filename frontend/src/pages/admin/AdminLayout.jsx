@@ -14,6 +14,8 @@ import {
   ShoppingCart,
   Users,
   Percent,
+  Truck,
+  ExternalLink,
   ChevronLeft,
   LogOut,
   Menu
@@ -30,6 +32,7 @@ const NAV = [
   { to: '/admin/orders', label: 'Orders', Icon: ShoppingCart },
   { to: '/admin/users', label: 'Users', Icon: Users }
   ,{ to: '/admin/coupons', label: 'Coupons', Icon: Percent }
+  ,{ to: '/admin/shipping', label: 'Delivery rates', Icon: Truck }
 ]
 
 export default function AdminLayout() {
@@ -188,7 +191,11 @@ export default function AdminLayout() {
 
           <div className="flex-1" />
 
-          <div className="w-8 h-8 rounded-full bg-gold-400 flex items-center justify-center">
+          <Link to="/" target="_blank" className="hidden sm:flex items-center gap-1.5 text-xs text-stone-500 hover:text-obsidian-900 mr-5">
+            View store <ExternalLink size={12} />
+          </Link>
+          <span className="hidden sm:block text-xs text-stone-500 mr-3">{user?.name}</span>
+          <div className="w-8 h-8 rounded-full bg-gold-400 flex items-center justify-center text-sm font-medium">
             {user?.name?.[0]}
           </div>
         </header>

@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, Ruler } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 
-export default function SizeGuideModal({ isOpen, onClose, sizeChart, productName = '' }) {
+export default function SizeGuideModal({ isOpen, onClose, sizeChart, productName = '', selectedSize = '' }) {
   const modalRef = useRef(null)
   const closeButtonRef = useRef(null)
 
@@ -150,7 +150,7 @@ export default function SizeGuideModal({ isOpen, onClose, sizeChart, productName
                       </thead>
                       <tbody>
                         {activeRows.map((row, i) => (
-                          <tr key={row.size} className={`${i % 2 === 0 ? 'bg-white' : 'bg-stone-50/50'} border-b border-stone-100 hover:bg-stone-50 transition-colors`}>
+                          <tr key={row.size} className={`${row.size === selectedSize ? 'bg-gold-300/20 ring-1 ring-inset ring-gold-400' : i % 2 === 0 ? 'bg-white' : 'bg-stone-50/50'} border-b border-stone-100 hover:bg-stone-50 transition-colors`}>
                             <td className="px-4 py-3 sticky left-0 bg-inherit">
                               <span className="font-mono text-sm font-semibold text-stone-900 bg-stone-100 px-3 py-1.5 rounded-lg inline-block">
                                 {row.size}

@@ -1,162 +1,130 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { Instagram, Facebook, Twitter, Mail, MapPin, Phone } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { Instagram, Facebook, Mail, MapPin, Phone, MessageCircle } from 'lucide-react'
+import { FaTiktok } from 'react-icons/fa'
+import { SITE } from '../../data/site'
 
-/* ✅ TikTok SVG (no external lib needed) */
-const TikTokIcon = ({ size = 16, className = '' }) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="currentColor"
-    width={size}
-    height={size}
-    className={className}
-  >
-    <path d="M19 7.5a5.5 5.5 0 01-4.5-2.3V14a5 5 0 11-5-5c.3 0 .6 0 .9.1v2.6a2.4 2.4 0 102.1 2.3V2h2.5a5.5 5.5 0 004.5 5.5v2z"/>
-  </svg>
-)
+const SHOP_LINKS = [
+  ['New Arrivals', '/shop?filter=new'],
+  ['Featured', '/shop?filter=featured'],
+  ['Tops', '/shop?category=tops'],
+  ['Outerwear', '/shop?category=outerwear'],
+  ['Bottoms', '/shop?category=bottoms'],
+  ['Sale', '/shop?filter=sale'],
+]
+
+const HELP_LINKS = [
+  ['Track Order', '/orders'],
+  ['Shipping & Returns', '/shipping-returns'],
+  ['Size Guide', '/size-guide'],
+  ['FAQ', '/faq'],
+  ['Contact Us', '/contact'],
+]
+
+const COMPANY_LINKS = [
+  ['About Dome', '/about'],
+  ['My Account', '/account'],
+  ['Wishlist', '/wishlist'],
+]
+
+function LinkColumn({ title, links }) {
+  return (
+    <div>
+      <h4 className="font-mono text-[10px] tracking-[0.25em] uppercase text-gold-400 mb-5">{title}</h4>
+      <ul className="space-y-3">
+        {links.map(([label, to]) => (
+          <li key={label}>
+            <Link to={to} className="text-stone-400 text-sm hover:text-cream-50 transition-colors">{label}</Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
 
 export default function Footer() {
+  const [email, setEmail] = useState('')
+
+  const subscribe = (e) => {
+    e.preventDefault()
+    // No newsletter backend yet: hand the signup to the shop inbox so it is never lost.
+    window.location.href = `mailto:${SITE.email}?subject=${encodeURIComponent('Newsletter signup')}&body=${encodeURIComponent(`Please add ${email} to the Dome Circle.`)}`
+    toast.success('Thanks for joining the Dome Circle!')
+    setEmail('')
+  }
 
   const socials = [
-    { Icon: Instagram, link: 'https://instagram.com/yourusername', label: 'Instagram' },
-    { Icon: Facebook, link: 'https://facebook.com/yourpage', label: 'Facebook' },
-    { Icon: Twitter, link: 'https://twitter.com/yourusername', label: 'Twitter' },
-    { Icon: TikTokIcon, link: 'https://www.tiktok.com/@yourusername', label: 'TikTok' },
+    { Icon: Instagram, href: SITE.socials.instagram, label: 'Instagram' },
+    { Icon: Facebook, href: SITE.socials.facebook, label: 'Facebook' },
+    { Icon: FaTiktok, href: SITE.socials.tiktok, label: 'TikTok' },
+    { Icon: MessageCircle, href: SITE.whatsapp, label: 'WhatsApp' },
   ]
 
   return (
     <footer className="bg-obsidian-900 text-cream-100 mt-24">
-
-      {/* Newsletter */}
       <div className="border-b border-white/10">
-        <div className="page-container py-16 flex flex-col md:flex-row items-center justify-between gap-8">
-          <div>
-            <p className="section-subtitle text-gold-300">Stay Connected</p>
-            <h3 className="font-display text-3xl md:text-4xl font-light text-cream-50">
-              Join the Dome Circle
-            </h3>
-            <p className="text-stone-400 text-sm mt-2">
-              Get early access, exclusive drops, and style notes.
-            </p>
+        <div className="page-container py-14 flex flex-col md:flex-row items-center justify-between gap-8">
+          <div className="text-center md:text-left">
+            <p className="section-subtitle text-gold-300">Stay connected</p>
+            <h3 className="font-display text-3xl md:text-4xl font-light text-cream-50">Join the Dome Circle</h3>
+            <p className="text-stone-400 text-sm mt-2">Early access, new drops and style notes.</p>
           </div>
-
-          <form className="flex w-full md:w-auto gap-0" onSubmit={e => e.preventDefault()}>
+          <form className="flex w-full md:w-auto" onSubmit={subscribe}>
             <input
-              type="email"
+              type="email" required value={email} onChange={e => setEmail(e.target.value)} aria-label="Email address"
               placeholder="Your email address"
               className="flex-1 md:w-72 px-4 py-3.5 bg-white/10 border border-white/20 text-cream-50 placeholder-stone-500 text-sm focus:outline-none focus:border-gold-400"
             />
-            <button className="btn-gold px-6 text-xs whitespace-nowrap">
-              Subscribe
-            </button>
+            <button className="btn-gold px-6 text-xs whitespace-nowrap">Subscribe</button>
           </form>
         </div>
       </div>
 
-      {/* Main Footer */}
-      <div className="page-container py-16">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12">
-
-          {/* Brand */}
-          <div className="col-span-2 md:col-span-1">
-            <div className="mb-6">
-              <div className="font-display text-3xl text-cream-50">DOME</div>
+      <div className="page-container py-14">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-10">
+          <div className="col-span-2">
+            <Link to="/" className="inline-block mb-5">
+              <div className="font-display text-3xl tracking-[0.1em] text-cream-50">DOME</div>
               <div className="font-mono text-[9px] tracking-[0.4em] text-gold-400 uppercase -mt-1">Nepal</div>
-            </div>
-
-            <p className="text-stone-400 text-xs mb-6">
-              Crafted in Nepal. Premium streetwear.
+            </Link>
+            <p className="text-stone-400 text-sm max-w-xs leading-relaxed mb-6">
+              Premium streetwear crafted in Kathmandu. Delivered to all 77 districts. Pay by cash on delivery or FonePay QR.
             </p>
-
-            {/* ✅ Social Links */}
-            <div className="flex gap-4">
-              {socials.map(({ Icon, link, label }, i) => (
-                <motion.a
-                  key={i}
-                  href={link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={label}
-                  whileHover={{ scale: 1.2, color: '#C9A84C' }}
-                  className="text-stone-500"
-                >
-                  <Icon size={16} />
-                </motion.a>
+            <ul className="space-y-2.5 text-sm text-stone-400 mb-6">
+              <li className="flex gap-3 items-center"><MapPin size={14} className="text-gold-400 shrink-0" />{SITE.address}</li>
+              <li><a href={`tel:${SITE.phoneHref}`} className="flex gap-3 items-center hover:text-cream-50"><Phone size={14} className="text-gold-400 shrink-0" />{SITE.phone}</a></li>
+              <li><a href={`mailto:${SITE.email}`} className="flex gap-3 items-center hover:text-cream-50"><Mail size={14} className="text-gold-400 shrink-0" />{SITE.email}</a></li>
+            </ul>
+            <div className="flex gap-3">
+              {socials.map(({ Icon, href, label }) => (
+                <a key={label} href={href} target="_blank" rel="noopener noreferrer" aria-label={label} title={label}
+                  className="w-9 h-9 border border-white/15 flex items-center justify-center text-stone-400 hover:text-gold-400 hover:border-gold-400 transition-colors">
+                  <Icon size={15} />
+                </a>
               ))}
             </div>
           </div>
-
-          {/* Shop */}
-          <div>
-            <h4 className="font-mono text-[10px] uppercase text-gold-400 mb-5">Shop</h4>
-            <ul className="space-y-3">
-              {['New Arrivals', 'Men', 'Women', 'Accessories', 'Sale'].map(link => (
-                <li key={link}>
-                  <Link to="/shop" className="text-stone-400 text-xs hover:text-cream-50">
-                    {link}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Help */}
-          <div>
-            <h4 className="font-mono text-[10px] uppercase text-gold-400 mb-5">Help</h4>
-            <ul className="space-y-3">
-              {[
-                { label: 'Track Order', to: '/orders' },
-                { label: 'Size Guide', to: '#' },
-                { label: 'Shipping & Returns', to: '#' },
-                { label: 'FAQ', to: '#' },
-              ].map(link => (
-                <li key={link.label}>
-                  <Link to={link.to} className="text-stone-400 text-xs hover:text-cream-50">
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Contact */}
-          <div>
-            <h4 className="font-mono text-[10px] uppercase text-gold-400 mb-5">Contact</h4>
-            <ul className="space-y-3">
-              {[
-                { Icon: MapPin, text: 'Tahachal, Kathmandu, Nepal' },
-                { Icon: Phone, text: '+977 9844280168' },
-                { Icon: Mail, text: 'domee.clothing@gmail.com' },
-              ].map(({ Icon, text }) => (
-                <li key={text} className="flex gap-2">
-                  <Icon size={12} className="text-gold-400" />
-                  <span className="text-stone-400 text-xs">{text}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
+          <LinkColumn title="Shop" links={SHOP_LINKS} />
+          <LinkColumn title="Help" links={HELP_LINKS} />
+          <LinkColumn title="Company" links={COMPANY_LINKS} />
         </div>
       </div>
 
-      {/* Bottom */}
       <div className="border-t border-white/10">
-        <div className="page-container py-5 flex flex-col sm:flex-row justify-between items-center">
-          <p className="text-stone-600 text-[10px] uppercase">
-            © {new Date().getFullYear()} Dome Nepal
-          </p>
-
-          <div className="flex gap-6">
-            <Link to="#" className="text-stone-600 text-[10px] hover:text-stone-400">
-              Privacy Policy
-            </Link>
-            <Link to="#" className="text-stone-600 text-[10px] hover:text-stone-400">
-              Terms
-            </Link>
+        <div className="page-container py-5 flex flex-col sm:flex-row justify-between items-center gap-3">
+          <p className="text-stone-500 text-xs">© {new Date().getFullYear()} Dome Nepal. All rights reserved.</p>
+          <div className="flex items-center gap-2 text-[10px] tracking-widest uppercase text-stone-400">
+            <span>We accept</span>
+            <span className="border border-white/15 px-2 py-1">Cash on delivery</span>
+            <span className="border border-white/15 px-2 py-1">FonePay QR</span>
+          </div>
+          <div className="flex gap-6 text-xs text-stone-500">
+            <Link to="/privacy" className="hover:text-stone-300">Privacy Policy</Link>
+            <Link to="/terms" className="hover:text-stone-300">Terms</Link>
           </div>
         </div>
       </div>
-
     </footer>
   )
 }

@@ -187,7 +187,7 @@ export default function OrderDetailPage() {
                 </div>
               </div>
               <div className={`mt-3 text-[10px] font-mono px-2 py-1 inline-block ${order.isPaid ? 'bg-green-50 text-green-600' : 'bg-amber-50 text-amber-600'}`}>
-                {order.isPaid ? '✓ Paid' : '◷ Payment Pending'}
+                {order.isPaid ? '✓ Paid' : order.paymentMethod === 'cash_on_delivery' ? '◷ Pay cash on delivery' : order.paymentResult?.status === 'rejected' ? '✕ Payment could not be verified, please contact us' : '◷ Payment awaiting verification'}
               </div>
             </div>
 
@@ -196,7 +196,8 @@ export default function OrderDetailPage() {
               <div className="text-xs text-stone-500 space-y-1">
                 <p className="font-medium text-obsidian-900">{order.shippingAddress.name}</p>
                 <p>{order.shippingAddress.street}</p>
-                <p>{order.shippingAddress.city}, {order.shippingAddress.zip}</p>
+                <p>{order.shippingAddress.city}</p>
+                <p>{order.shippingAddress.district ? `${order.shippingAddress.district}, ${order.shippingAddress.state}` : order.shippingAddress.state}</p>
                 <p>{order.shippingAddress.country}</p>
                 <p className="font-mono">{order.shippingAddress.phone}</p>
               </div>

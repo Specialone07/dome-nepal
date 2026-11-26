@@ -30,20 +30,28 @@ const orderSchema = new mongoose.Schema({
     email: { type: String, required: true },
     street: { type: String, required: true },
     city: { type: String, required: true },
+    district: { type: String, required: true },
     state: { type: String, required: true },
+    landmark: { type: String, default: '' },
     zip: { type: String, required: false },
     country: { type: String, required: true },
     phone: { type: String, required: true }
   },
-  paymentMethod: { type: String, enum: ['card', 'cash_on_delivery', 'esewa', 'khalti'], required: true },
+  paymentMethod: { type: String, enum: ['card', 'cash_on_delivery', 'esewa', 'khalti', 'fonepay_qr'], required: true },
   paymentResult: {
     id: String,
-    status: String,
+    status: String, // awaiting_verification | verified | rejected
     updateTime: String,
-    email: String
+    email: String,
+    payerName: String,
+    verifiedAt: Date,
+    verifiedBy: String,
+    note: String
   },
   subtotal: { type: Number, required: true },
   shippingPrice: { type: Number, required: true, default: 0 },
+  shippingZone: { type: Number, default: 0 },
+  deliveryEta: { type: String, default: '' },
   taxPrice: { type: Number, required: true, default: 0 },
   totalPrice: { type: Number, required: true },
   discount: { type: Number, default: 0 },

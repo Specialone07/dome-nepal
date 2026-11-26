@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence, Reorder } from 'framer-motion'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Edit, Trash2, Search, X, GripVertical, Upload, Crop, Image as ImageIcon, Package, Ruler, ChevronDown, ChevronUp, Eye, AlertCircle, Loader2, RotateCcw } from 'lucide-react'
@@ -31,6 +31,39 @@ const COLOR_PRESETS = {
 }
 
 const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
+const MAX_IMAGES = 10
+const MAX_IMAGE_MB = 60 // raw files can be big phone/camera photos; they are shrunk before upload
+const MAX_EDGE = 2400 // longest side after shrinking
+const PLACEHOLDER_PREVIEW = 'data:image/svg+xml;utf8,' + encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' width='160' height='200'><rect width='160' height='200' fill='#f5efe0'/><text x='80' y='105' font-size='13' text-anchor='middle' fill='#8a7a4e' font-family='sans-serif'>Photo ready</text></svg>")
+
+const isImageFile = f => f.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|avif|heic|heif|bmp|tiff?)$/i.test(f.name)
+
+// Returns an ImageBitmap if this browser can decode the file (HEIC usually can't outside Safari).
+async function decodeImage(file) {
+  try { return await createImageBitmap(file) } catch { return null }
+}
+
+// Shrinks large photos and converts them to a web-friendly format. Files the browser can't
+// decode are sent untouched and converted by the server.
+async function shrinkImage(file) {
+  const bitmap = await decodeImage(file)
+  if (!bitmap) return file
+  const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height))
+  const smallEnough = scale === 1 && file.size <= 3 * 1024 * 1024 && /^image\/(jpe?g|webp)$/.test(file.type)
+  if (smallEnough) { bitmap.close?.(); return file }
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round(bitmap.width * scale)
+  canvas.height = Math.round(bitmap.height * scale)
+  canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+  bitmap.close?.()
+  const keepAlpha = /^image\/(png|gif|avif)$/.test(file.type)
+  const type = keepAlpha ? 'image/webp' : 'image/jpeg'
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, type, 0.88))
+  if (!blob) return file
+  const ext = keepAlpha ? 'webp' : 'jpg'
+  return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.' + ext, { type })
+}
+const PRESET_BY_CATEGORY = { tops: 'tops', outerwear: 'tops', activewear: 'tops', bottoms: 'bottoms', dresses: 'dresses', footwear: 'footwear' }
 
 function ColorDot({ color, size = 16 }) {
   const hex = COLOR_PRESETS[color] || color || '#ccc'
@@ -134,7 +167,34 @@ function DropzoneArea({ images, setImages, variantColors, disabled = false }) {
   const [, setCropQueue] = useState([])
   const [cropping, setCropping] = useState(null)
 
-  const processFiles = (files) => {
+  const processFiles = (incoming) => {
+    const okType = isImageFile
+    const okSize = f => f.size <= MAX_IMAGE_MB * 1024 * 1024
+    const rejectedType = incoming.filter(f => !okType(f))
+    const rejectedSize = incoming.filter(f => okType(f) && !okSize(f))
+    if (rejectedType.length) toast.error(`${rejectedType.length} file(s) skipped — they are not photos`)
+    if (rejectedSize.length) toast.error(`${rejectedSize.length} file(s) skipped — each photo must be under ${MAX_IMAGE_MB} MB`)
+    let files = incoming.filter(f => okType(f) && okSize(f))
+    const room = MAX_IMAGES - images.length
+    if (files.length > room) { toast.error(`You can add at most ${MAX_IMAGES} images per product`); files = files.slice(0, Math.max(0, room)) }
+    if (!files.length) return
+    ;(async () => {
+      const decodable = []
+      for (const f of files) {
+        const bmp = await decodeImage(f)
+        if (bmp) { bmp.close?.(); decodable.push(f) }
+        else {
+          const hint = variantColors.length === 1 ? variantColors[0] : ''
+          setImages(prev => [...prev, { file: f, preview: PLACEHOLDER_PREVIEW, color: hint, id: Date.now() + Math.random() }])
+          toast('Preview is not available for this photo type — it will be converted when you save', { icon: 'ℹ️' })
+        }
+      }
+      queueForCrop(decodable)
+    })()
+  }
+
+  const queueForCrop = (files) => {
+    if (!files.length) return
     const newQueue = files.map(f => ({ src: URL.createObjectURL(f), filename: f.name, rawFile: f }))
     setCropQueue(prev => [...prev, ...newQueue])
     if (!cropping) {
@@ -147,7 +207,7 @@ function DropzoneArea({ images, setImages, variantColors, disabled = false }) {
   const handleDrop = (e) => {
     if (disabled) return
     e.preventDefault(); setIsDragging(false)
-    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'))
+    const files = Array.from(e.dataTransfer.files).filter(isImageFile)
     if (files.length) processFiles(files)
   }
 
@@ -159,7 +219,7 @@ function DropzoneArea({ images, setImages, variantColors, disabled = false }) {
   }
 
   const finalizeCrop = (file, preview) => {
-    const colorHint = variantColors[images.length % variantColors.length] || ''
+    const colorHint = variantColors.length === 1 ? variantColors[0] : ''
     setImages(prev => [...prev, { file, preview, color: colorHint, id: Date.now() + Math.random() }])
     advanceCropQueue()
   }
@@ -167,7 +227,7 @@ function DropzoneArea({ images, setImages, variantColors, disabled = false }) {
   const skipCrop = () => {
     if (cropping) {
       const f = cropping.rawFile
-      const colorHint = variantColors[images.length % variantColors.length] || ''
+      const colorHint = variantColors.length === 1 ? variantColors[0] : ''
       setImages(prev => [...prev, { file: f, preview: cropping.src, color: colorHint, id: Date.now() + Math.random() }])
     }
     advanceCropQueue()
@@ -206,7 +266,7 @@ function DropzoneArea({ images, setImages, variantColors, disabled = false }) {
           {disabled ? 'Image upload disabled during processing' : 
           isDragging ? 'Drop to add images' : 'Drag & drop images, or click to browse'}
         </p>
-        <p className="text-[10px] text-stone-400 mt-1">PNG, JPG, WEBP — Each image will be cropped</p>
+        <p className="text-[10px] text-stone-400 mt-1">Any photo — JPG, PNG, WEBP, HEIC and more. Big photos are shrunk automatically.</p>
       </div>
 
       <AnimatePresence>
@@ -225,13 +285,17 @@ function DropzoneArea({ images, setImages, variantColors, disabled = false }) {
                     <img src={img.preview} alt="" className="w-full h-full object-cover" />
                     <div className="absolute bottom-0 inset-x-0 bg-white/90 backdrop-blur-sm px-1 py-0.5 flex items-center gap-1">
                       <ColorDot color={img.color} size={8} />
-                      <input
-                        value={img.color}
+                      <select
+                        value={variantColors.includes(img.color) ? img.color : ''}
                         onChange={e => updateImageColor(img.id, e.target.value)}
-                        placeholder="color"
+                        title="Show this photo when this colour is selected"
                         className="text-[8px] text-stone-600 bg-transparent w-full outline-none font-mono"
                         onClick={e => e.stopPropagation()}
-                      />
+                        onPointerDown={e => e.stopPropagation()}
+                      >
+                        <option value="">Any colour</option>
+                        {variantColors.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
                     </div>
                     <button
                       type="button"
@@ -494,7 +558,11 @@ function VariantBuilder({ colorGroups, setColorGroups, images, disabled = false 
 }
 
 // ─── Flatten color groups → flat variant array ──────────────────────────────────
-function flattenColorGroups(colorGroups) {
+function slugPart(value) {
+  return String(value || '').toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 14)
+}
+
+function flattenColorGroups(colorGroups, productName = '') {
   const flat = []
   for (const group of colorGroups) {
     for (const size of SIZES) {
@@ -505,7 +573,7 @@ function flattenColorGroups(colorGroups) {
         colorHex: COLOR_PRESETS[group.color] || '#000000',
         stock: Number(group.sizes[size] || 0),
         imageId: group.imageId || '',
-        sku: `SKU-${size}-${group.color}-${Date.now()}`,
+        sku: [slugPart(productName) || 'DOME', slugPart(group.color), size].filter(Boolean).join('-'),
       })
     }
   }
@@ -1173,7 +1241,7 @@ function ProductFormModal({ product, onClose }) {
 
   const [images, setImages] = useState(
     product?.images?.map((img, i) => ({
-      file: null, preview: img.url, publicId: img.publicId || '', color: '', id: i, isExisting: true,
+      file: null, preview: img.url, publicId: img.publicId || '', color: img.color || '', id: i, isExisting: true,
     })) || []
   )
 
@@ -1188,6 +1256,25 @@ function ProductFormModal({ product, onClose }) {
   const [sizeChart, setSizeChart] = useState(
     product?.sizeChart ? inflateSizeChart(product.sizeChart) : buildDefaultSizeChart()
   )
+
+  // Keep the size chart in step with the product: pick a preset for the category and
+  // make sure there is a row for every size that is in stock-tracking.
+  useEffect(() => {
+    if (!sizeChart.enabled) return
+    setSizeChart(sc => {
+      let next = sc
+      if (!next.measurements.length && PRESET_BY_CATEGORY[form.category]) next = applyPreset(PRESET_BY_CATEGORY[form.category], next)
+      const sizes = SIZES.filter(sz => colorGroups.some(g => g.sizes[sz] !== ''))
+      const have = new Set(next.rows.map(r => r.size))
+      const missing = sizes.filter(sz => !have.has(sz))
+      if (!missing.length) return next
+      const blank = Object.fromEntries(next.measurements.map(m => [m.key, '']))
+      const rows = [...next.rows, ...missing.map(size => ({ size, active: true, values: { ...blank } }))]
+      const order = sz => { const i = SIZES.indexOf(sz); return i < 0 ? 99 : i }
+      rows.sort((a, b) => order(a.size) - order(b.size))
+      return { ...next, rows }
+    })
+  }, [sizeChart.enabled, sizeChart.measurements.length, colorGroups, form.category])
 
   // Loading states
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -1227,7 +1314,16 @@ function ProductFormModal({ product, onClose }) {
       return
     }
 
-    const flatVariants = flattenColorGroups(colorGroups)
+    if (!images.length) {
+      toast.error('Add at least one product image')
+      return
+    }
+
+    const flatVariants = flattenColorGroups(colorGroups, form.name)
+
+    // A colour group may point at a specific photo — make that the photo's colour.
+    const colorByImageId = new Map(colorGroups.filter(g => g.imageId && g.color.trim()).map(g => [String(g.imageId), g.color.trim()]))
+    const colorOf = (img) => colorByImageId.get(String(img.id)) || img.color || ''
 
     // Count new images to upload
     const newImages = images.filter(img => img.file && !img.isExisting)
@@ -1244,23 +1340,20 @@ function ProductFormModal({ product, onClose }) {
         setUploadProgress({ current: 0, total: totalImagesToUpload })
 
         const uploadFormData = new FormData()
-        newImages.forEach(img => {
-          if (img.file) {
-            uploadFormData.append('images', img.file)
-          }
-        })
+        for (const img of newImages) {
+          const ready = await shrinkImage(img.file)
+          uploadFormData.append('images', ready)
+        }
 
-        console.log(`📤 Starting upload of ${totalImagesToUpload} images...`)
         
         const uploadResponse = await api.post('/upload', uploadFormData, {
           headers: { 'Content-Type': 'multipart/form-data' },
           onUploadProgress: (progressEvent) => {
-            const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-            console.log(`📊 Upload progress: ${progress}%`)
+            const progress = Math.round((progressEvent.loaded * 100) / (progressEvent.total || progressEvent.loaded || 1))
+            setUploadProgress({ current: progress, total: totalImagesToUpload })
           }
         })
 
-        console.log('✅ Images uploaded successfully:', uploadResponse.data)
 
         // Update images with uploaded URLs
         const uploadedUrls = uploadResponse.data.data?.images || uploadResponse.data.images || []
@@ -1272,6 +1365,7 @@ function ProductFormModal({ product, onClose }) {
             updatedImages[index] = {
               ...img,
               preview: uploadedUrls[urlIndex].url || uploadedUrls[urlIndex],
+              publicId: uploadedUrls[urlIndex].publicId || '',
               file: null,
               isExisting: true
             }
@@ -1280,7 +1374,7 @@ function ProductFormModal({ product, onClose }) {
         })
         
         setImages(updatedImages)
-        setUploadProgress({ current: totalImagesToUpload, total: totalImagesToUpload })
+        setUploadProgress({ current: 100, total: totalImagesToUpload })
         finalImagesToUse = updatedImages
       }
 
@@ -1300,8 +1394,15 @@ function ProductFormModal({ product, onClose }) {
       if (chartPayload.enabled) {
         const availableSizes = new Set(flatVariants.map(variant => variant.size))
         chartPayload.rows = chartPayload.rows.filter(row => availableSizes.has(row.size))
+        if (!chartPayload.measurements.length) {
+          throw new Error('Add at least one measurement column to the size chart, or turn it off')
+        }
         if (!chartPayload.rows.length) {
           throw new Error('The size chart needs at least one row matching an enabled product size')
+        }
+        const empty = chartPayload.rows.find(r => !chartPayload.measurements.some(m => String(r.values?.[m.key] ?? '').trim()))
+        if (empty) {
+          throw new Error(`Size chart: add at least one measurement for size ${empty.size}`)
         }
       }
       formData.append('sizeChart', JSON.stringify(chartPayload))
@@ -1311,18 +1412,17 @@ function ProductFormModal({ product, onClose }) {
       const finalImages = finalImagesToUse.map(img => ({
         url: img.preview,
         publicId: img.publicId || '',
-        alt: form.name || product?.name || ''
+        alt: form.name || product?.name || '',
+        color: colorOf(img)
       }))
       formData.append('images', JSON.stringify(finalImages))
 
-      console.log(`📤 ${isEdit ? 'Updating' : 'Creating'} product with ${finalImages.length} images...`)
 
       // Step 3: Send product create/update request
-      const productResponse = isEdit 
+      isEdit 
         ? await productAPI.update(product._id, formData)
         : await productAPI.create(formData)
 
-      console.log('✅ Product operation successful:', productResponse.data)
 
       // Step 4: Success - refresh and close
       qc.invalidateQueries(['admin-products'])
@@ -1396,7 +1496,7 @@ function ProductFormModal({ product, onClose }) {
               </p>
               {submitStatus === 'uploading' && uploadProgress.total > 0 && (
                 <p className="text-xs text-stone-500 font-mono">
-                  {uploadProgress.current} of {uploadProgress.total} images
+                  {uploadProgress.total} image{uploadProgress.total !== 1 ? 's' : ''} · {uploadProgress.current}%
                 </p>
               )}
             </motion.div>

@@ -3,13 +3,13 @@ import { X, Plus, Minus, ShoppingBag, Trash2, ArrowRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useCartStore } from '../../stores'
 import { formatPrice } from '../../utils/helpers'
+import { NEPAL_SHIPPING } from '../../data/nepalShipping'
 
 export default function CartDrawer() {
   const { items, isOpen, closeCart, removeItem, updateQty } = useCartStore()
 
   const subtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0)
-  const shipping = subtotal >= 5000 ? 0 : 180
-  const total = subtotal + shipping
+  const freeAt = NEPAL_SHIPPING.freeShippingThreshold
 
   return (
     <AnimatePresence>
@@ -150,16 +150,16 @@ export default function CartDrawer() {
             {items.length > 0 && (
               <div className="border-t border-stone-100 px-6 py-5 space-y-4 bg-cream-50">
                 {/* Free shipping indicator */}
-                {subtotal < 5000 && (
+                {subtotal < freeAt && (
                   <div>
                     <div className="flex justify-between text-xs text-stone-500 mb-1.5">
-                      <span>Free shipping unlocks at NPR 5,000</span>
-                      <span>{formatPrice(5000 - subtotal)} away</span>
+                      <span>Free delivery in most districts at NPR {freeAt.toLocaleString()}</span>
+                      <span>{formatPrice(freeAt - subtotal)} away</span>
                     </div>
                     <div className="h-1 bg-stone-200 rounded-full overflow-hidden">
                       <motion.div
                         initial={{ width: 0 }}
-                        animate={{ width: `${(subtotal / 5000) * 100}%` }}
+                        animate={{ width: `${(subtotal / freeAt) * 100}%` }}
                         className="h-full bg-gold-400 rounded-full"
                       />
                     </div>
@@ -169,16 +169,12 @@ export default function CartDrawer() {
                 {/* Totals */}
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-xs text-stone-500">
-                    <span>Subtotal</span>
-                    <span>{formatPrice(subtotal)}</span>
-                  </div>
-                  <div className="flex justify-between text-xs text-stone-500">
                     <span>Shipping</span>
-                    <span>{shipping === 0 ? <span className="text-green-600">Free</span> : formatPrice(shipping)}</span>
+                    <span>Calculated at checkout</span>
                   </div>
                   <div className="flex justify-between font-body font-medium text-sm text-obsidian-900 pt-2 border-t border-stone-200">
-                    <span>Total</span>
-                    <span className="font-display text-lg">{formatPrice(total)}</span>
+                    <span>Subtotal</span>
+                    <span className="font-display text-lg">{formatPrice(subtotal)}</span>
                   </div>
                 </div>
 
@@ -191,8 +187,8 @@ export default function CartDrawer() {
                   Proceed to Checkout
                   <ArrowRight size={14} />
                 </Link>
-                <p>
-                  Delivery is free above Rs. 5,000; otherwise a Rs. 180 standard delivery fee applies.
+                <p className="text-[11px] text-stone-400 text-center leading-relaxed">
+                  Delivery from Rs. 100 across all 77 districts · Cash on delivery available
                 </p>
 
                 <button

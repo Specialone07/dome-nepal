@@ -117,6 +117,8 @@ export const useCartStore = create(
     {
       name: 'cart-store',
       storage: createJSONStorage(() => localStorage),
+      // Persist only the bag contents — never the drawer's open state, or it reopens on every reload.
+      partialize: (state) => ({ items: state.items }),
     }
   )
 )

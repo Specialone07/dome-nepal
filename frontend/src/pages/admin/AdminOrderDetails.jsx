@@ -8,7 +8,7 @@ import { formatPrice, formatDate, ORDER_STATUSES } from '../../utils/helpers'
 
 const STATUS_TRANSITIONS = {
   pending: ['processing', 'cancelled'], processing: ['shipped', 'cancelled'],
-  shipped: ['out_for_delivery'], out_for_delivery: ['delivered'], delivered: ['refunded'],
+  shipped: ['out_for_delivery', 'delivered'], out_for_delivery: ['delivered'], delivered: ['refunded'],
   cancelled: [], refunded: [],
 }
 
@@ -25,6 +25,11 @@ function OrderContent({ order, id }) {
     },
     onError: error => toast.error(error.response?.data?.message || 'Could not update order')
   })
+  const payment = useMutation({
+    mutationFn: payload => orderAPI.verifyPayment(id, payload),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-order', id] }); qc.invalidateQueries({ queryKey: ['admin-orders'] }); toast.success('Payment updated') },
+    onError: error => toast.error(error.response?.data?.message || 'Could not update payment')
+  })
   const copy = value => navigator.clipboard.writeText(value || '').then(() => toast.success('Copied'))
 
   return <div className="space-y-6 print-order">
@@ -35,11 +40,20 @@ function OrderContent({ order, id }) {
 
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
       <section className="bg-white p-5 border border-stone-100"><h2 className="font-semibold mb-3">Customer</h2><p className="text-sm"><strong>Name:</strong> {order.user?.name || order.shippingAddress?.name}</p><p className="text-sm flex items-center gap-2"><strong>Email:</strong> {order.user?.email || order.shippingAddress?.email}<button className="admin-print-hide text-stone-400" onClick={() => copy(order.user?.email || order.shippingAddress?.email)}><Copy size={12} /></button></p><p className="text-sm flex items-center gap-2"><strong>Phone:</strong> {order.shippingAddress?.phone}<button className="admin-print-hide text-stone-400" onClick={() => copy(order.shippingAddress?.phone)}><Copy size={12} /></button></p></section>
-      <section className="bg-white p-5 border border-stone-100"><h2 className="font-semibold mb-3">Shipping Address</h2><p className="text-sm">{order.shippingAddress?.street}</p><p className="text-sm">{order.shippingAddress?.city}, {order.shippingAddress?.state} {order.shippingAddress?.zip}</p><p className="text-sm">{order.shippingAddress?.country}</p></section>
-      <section className="bg-white p-5 border border-stone-100"><h2 className="font-semibold mb-3">Payment</h2><p className="text-sm capitalize"><strong>Method:</strong> {order.paymentMethod?.replaceAll('_', ' ')}</p><p className="text-sm"><strong>Status:</strong> {order.isPaid ? 'Paid' : 'Payment pending'}</p>{order.couponCode && <p className="text-sm"><strong>Coupon:</strong> {order.couponCode}</p>}{order.trackingNumber && <p className="text-sm"><strong>Tracking:</strong> {order.trackingNumber}</p>}</section>
+      <section className="bg-white p-5 border border-stone-100"><h2 className="font-semibold mb-3">Shipping Address</h2><p className="text-sm">{order.shippingAddress?.street}</p><p className="text-sm">{order.shippingAddress?.city}</p><p className="text-sm">{order.shippingAddress?.district} district, {order.shippingAddress?.state}</p>{order.shippingAddress?.landmark && <p className="text-sm text-stone-500">Landmark: {order.shippingAddress.landmark}</p>}{order.deliveryEta && <p className="text-xs text-stone-400 mt-2">Zone {order.shippingZone} · ETA {order.deliveryEta}</p>}<p className="text-sm">{order.shippingAddress?.country}</p></section>
+      <section className="bg-white p-5 border border-stone-100"><h2 className="font-semibold mb-3">Payment</h2><p className="text-sm capitalize"><strong>Method:</strong> {order.paymentMethod === 'fonepay_qr' ? 'FonePay QR' : order.paymentMethod?.replaceAll('_', ' ')}</p><p className="text-sm"><strong>Status:</strong> {order.isPaid ? 'Paid' : 'Payment pending'}</p>{order.paymentMethod === 'fonepay_qr' && <div className="mt-3 border border-stone-200 p-3 space-y-2 text-sm">
+      <p><strong>Transaction ID:</strong> <span className="font-mono">{order.paymentResult?.id}</span><button className="admin-print-hide ml-2 text-stone-400" onClick={() => copy(order.paymentResult?.id)}><Copy size={12} /></button></p>
+      {order.paymentResult?.payerName && <p><strong>Payer:</strong> {order.paymentResult.payerName}</p>}
+      <p><strong>Expected:</strong> {formatPrice(order.totalPrice)}</p>
+      <p className={order.paymentResult?.status === 'verified' ? 'text-green-700' : order.paymentResult?.status === 'rejected' ? 'text-red-600' : 'text-amber-700'}>{order.paymentResult?.status === 'verified' ? '✓ Payment verified' : order.paymentResult?.status === 'rejected' ? '✕ Payment rejected' : '◷ Awaiting verification'}</p>
+      {order.status !== 'cancelled' && <div className="admin-print-hide flex gap-2 pt-1">
+        {order.paymentResult?.status !== 'verified' && <button disabled={payment.isPending} onClick={() => confirm(`Confirm you received ${formatPrice(order.totalPrice)} with this transaction ID in FonePay?`) && payment.mutate({ action: 'verify' })} className="btn-primary text-[10px] px-3 py-2">Mark verified</button>}
+        {order.paymentResult?.status !== 'rejected' && <button disabled={payment.isPending} onClick={() => { const note = prompt('Reason (optional)'); if (note !== null) payment.mutate({ action: 'reject', note }) }} className="btn-outline text-[10px] px-3 py-2">Reject</button>}
+      </div>}
+    </div>}{order.paymentMethod === 'cash_on_delivery' && !order.isPaid && <p className="mt-3 bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2 text-sm">Collect <strong>{formatPrice(order.totalPrice)}</strong> in cash on delivery</p>}{order.couponCode && <p className="text-sm"><strong>Coupon:</strong> {order.couponCode}</p>}{order.trackingNumber && <p className="text-sm"><strong>Tracking:</strong> {order.trackingNumber}</p>}</section>
     </div>
 
-    <section className="bg-white p-5 border border-stone-100"><h2 className="font-semibold mb-4">Items</h2><div className="divide-y divide-stone-100">{order.items.map((item, i) => <div key={i} className="flex gap-4 py-3 first:pt-0 last:pb-0"><img src={item.image} alt={item.name} className="w-16 h-16 object-cover rounded" /><div className="flex-1"><p className="font-medium text-sm">{item.name}</p><p className="text-xs text-gray-500">{item.size} / {item.color} · SKU variant</p><p className="text-xs">{item.quantity} × {formatPrice(item.price)}</p></div><p className="font-display">{formatPrice(item.quantity * item.price)}</p></div>)}</div></section>
+    <section className="bg-white p-5 border border-stone-100"><h2 className="font-semibold mb-4">Items</h2><div className="divide-y divide-stone-100">{order.items.map((item, i) => <div key={i} className="flex gap-4 py-3 first:pt-0 last:pb-0"><img src={item.image} alt={item.name} className="w-16 h-16 object-cover rounded" /><div className="flex-1"><p className="font-medium text-sm">{item.name}</p><p className="text-xs text-gray-500">{item.size} / {item.color}</p><p className="text-xs">{item.quantity} × {formatPrice(item.price)}</p></div><p className="font-display">{formatPrice(item.quantity * item.price)}</p></div>)}</div></section>
 
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
       <section className="bg-white p-5 border border-stone-100"><h2 className="font-semibold mb-3">Order timeline</h2><div className="space-y-3">{[...order.trackingEvents].reverse().map((event, i) => <div key={i} className="text-sm border-l-2 border-gold-300 pl-3"><p><strong className="capitalize">{event.status.replaceAll('_', ' ')}</strong> — {event.message}</p>{event.location && <p className="text-gray-400 text-xs">{event.location}</p>}<p className="text-gray-300 text-[10px]">{formatDate(event.timestamp)}{event.actor ? ` · ${event.actor}` : ''}</p></div>)}</div></section>

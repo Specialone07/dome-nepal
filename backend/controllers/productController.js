@@ -3,6 +3,29 @@ const asyncHandler = require('express-async-handler');
 const Product = require('../models/Product');
 const { cloudinary } = require('../config/cloudinary');
 
+
+// Clean an images array coming from the admin form. Keeps only valid entries.
+const sanitizeImages = (list, fallbackAlt = '') =>
+  (Array.isArray(list) ? list : [])
+    .filter(img => img && typeof img.url === 'string' && /^https?:\/\//.test(img.url))
+    .slice(0, 12)
+    .map(img => ({
+      url: img.url,
+      publicId: String(img.publicId || ''),
+      alt: String(img.alt || fallbackAlt || '').slice(0, 200),
+      color: String(img.color || '').trim().slice(0, 40),
+    }));
+
+// Delete Cloudinary images that are no longer part of the product (never the ones being kept).
+const destroyRemovedImages = async (previous = [], kept = []) => {
+  const keep = new Set(kept.map(img => img.publicId).filter(Boolean));
+  for (const img of previous) {
+    if (!img?.publicId || keep.has(img.publicId)) continue;
+    try { await cloudinary.uploader.destroy(img.publicId); }
+    catch (err) { console.log('Cloudinary delete failed:', err.message); }
+  }
+};
+
 const normalizeVariants = (input = []) => {
   const flat = [];
   for (const variant of Array.isArray(input) ? input : []) {
@@ -52,6 +75,7 @@ const getProducts = asyncHandler(async (req, res) => {
     search,
     featured,
     isNew,
+    onSale,
     sizes,
     colors
   } = req.query;
@@ -81,6 +105,7 @@ const getProducts = asyncHandler(async (req, res) => {
   // Flags
   if (featured === 'true') filter.isFeatured = true;
   if (isNew === 'true') filter.newArrival = true;
+  if (onSale === 'true') filter.$expr = { $gt: ['$comparePrice', '$price'] };
 
   // Search
   if (search) {
@@ -261,8 +286,6 @@ const createProduct = asyncHandler(async (req, res) => {
   try {
     const data = { ...req.body };
 
-    console.log("BODY:", data);
-    console.log("FILES:", req.files);
 
     // =========================
     // 1. REQUIRED FIELD CHECK
@@ -336,7 +359,7 @@ const createProduct = asyncHandler(async (req, res) => {
         
         if (Array.isArray(parsedImages) && parsedImages.length > 0) {
           // Images were pre-uploaded and sent as JSON
-          data.images = parsedImages;
+          data.images = sanitizeImages(parsedImages, data.name);
         } else if (req.files && req.files.length > 0) {
           // Original flow: images uploaded as files
           data.images = req.files.map(file => ({
@@ -469,8 +492,6 @@ const updateProduct = asyncHandler(async (req, res) => {
   try {
     const data = { ...req.body };
 
-    console.log("UPDATE BODY:", data);
-    console.log("FILES:", req.files);
 
     // =========================
     // 1. TYPE CONVERSION
@@ -533,19 +554,10 @@ const updateProduct = asyncHandler(async (req, res) => {
         
         if (Array.isArray(parsedImages) && parsedImages.length > 0) {
           // Images were pre-uploaded and sent as JSON
-          // Only delete old images if new images are being sent
-          if (parsedImages.length > 0) {
-            for (const img of existingProduct.images) {
-              if (img?.publicId && cloudinary?.uploader?.destroy) {
-                try {
-                  await cloudinary.uploader.destroy(img.publicId);
-                } catch (err) {
-                  console.log("Cloudinary delete failed:", err.message);
-                }
-              }
-            }
-          }
-          updatedImages = parsedImages;
+          // Replace the list, deleting from Cloudinary ONLY the images that were removed
+          const cleaned = sanitizeImages(parsedImages, data.name || existingProduct.name);
+          await destroyRemovedImages(existingProduct.images, cleaned);
+          updatedImages = cleaned;
         } else if (req.files && req.files.length > 0) {
           // Original flow: images uploaded as files
           for (const img of existingProduct.images) {

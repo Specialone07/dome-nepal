@@ -55,7 +55,8 @@ const sendEmail = async (order) => {
           <p><strong>Name:</strong> ${order.shippingAddress.name}</p>
           <p><strong>Phone:</strong> ${order.shippingAddress.phone}</p>
           <p><strong>Address:</strong> ${order.shippingAddress.street}</p>
-          <p><strong>City:</strong> ${order.shippingAddress.city}</p>
+          <p><strong>City:</strong> ${order.shippingAddress.city}, ${order.shippingAddress.district}</p>
+          <p><strong>Payment:</strong> ${order.paymentMethod === 'fonepay_qr' ? `FonePay QR — Rs. ${order.totalPrice} (we will verify your transaction shortly)` : `Cash on delivery — please keep Rs. ${order.totalPrice} ready`}</p>
         </div>
 
         <h3>Ordered Products</h3>
@@ -74,7 +75,7 @@ const sendEmail = async (order) => {
 
         <p>
           Track your order:<br/>
-          <a href="https://yourdomain.com/orders/${order._id}">
+          <a href="${(process.env.FRONTEND_URL || 'http://localhost:5173').split(',')[0].trim()}/orders/${order._id}">
             Click here to track
           </a>
         </p>
