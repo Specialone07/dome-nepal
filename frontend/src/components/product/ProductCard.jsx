@@ -1,3 +1,4 @@
+import { enhance } from '../../utils/cloudinary'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -17,7 +18,7 @@ export default function ProductCard({ product, index = 0 }) {
 
   const isWishlisted = has(product._id)
   const hasMultipleImages = product.images?.length > 1
-  const mainImage = product.images?.[activeImg]?.url || product.images?.[0]?.url
+  const mainImage = enhance(product.images?.[activeImg]?.url || product.images?.[0]?.url, { w: 700, h: 933 })
   const defaultVariant = product.variants?.find(variant => variant.stock > 0)
 
   const handleAddToCart = (e) => {
@@ -69,7 +70,7 @@ export default function ProductCard({ product, index = 0 }) {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.4 }}
-                src={product.images[1].url}
+                src={enhance(product.images[1].url, { w: 700, h: 933 })}
                 alt={product.name}
                 className="absolute inset-0 w-full h-full object-cover"
               />
