@@ -11,6 +11,7 @@ import ProductCard from '../components/product/ProductCard'
 import StarRating from '../components/common/StarRating'
 import ScrollReveal, { ScrollRevealGroup, ScrollRevealItem } from '../components/common/ScrollReveal'
 import PageTransition from '../components/common/PageTransition'
+import { enhance } from '../utils/cloudinary'
 import SizeGuideModal from '../components/product/SizeGuideModal'
 import { resolveColor } from '../utils/colors'
 import toast from 'react-hot-toast'
@@ -212,7 +213,7 @@ export default function ProductDetailPage() {
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.4 }}
-                  src={product.images[activeImg]?.url}
+                  src={enhance(product.images[activeImg]?.url, { w: 1200 })}
                   alt={product.name}
                   className="w-full h-full object-cover"
                 />
@@ -248,7 +249,7 @@ export default function ProductDetailPage() {
                       i === activeImg ? 'border-obsidian-900' : 'border-transparent hover:border-stone-300'
                     }`}
                   >
-                    <img src={img.url} alt={`${product.name} ${i + 1}`} className="w-full h-full object-cover" />
+                    <img src={enhance(img.url, { w: 200, h: 260 })} alt={`${product.name} ${i + 1}`} className="w-full h-full object-cover" />
                   </motion.button>
                 ))}
               </div>

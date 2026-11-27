@@ -8,6 +8,7 @@ import ProductCard from '../components/product/ProductCard'
 import { ProductCardSkeleton } from '../components/common/Skeletons'
 import ScrollReveal, { ScrollRevealGroup, ScrollRevealItem } from '../components/common/ScrollReveal'
 import PageTransition from '../components/common/PageTransition'
+import ProductHero from '../components/home/ProductHero'
 
 const CATEGORIES = [
   { label: 'Tops', slug: 'tops', desc: 'Refined essentials', img: 'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?w=800&q=80' },
@@ -127,7 +128,7 @@ export default function HomePage() {
 
   return (
     <PageTransition>
-      <HeroSection />
+      <ProductHero products={featuredData} loading={featuredLoading} fallback={<HeroSection />} />
       <MarqueeBar />
 
       {/* Categories */}
